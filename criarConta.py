@@ -237,11 +237,10 @@ class CriarConta:
     # FUNÇÕES
     # ==================================================
     def criar_conta(self):
-
-        nome = self.nome.get()
-        email = self.email.get()
-        senha = self.senha.get()
-        confirmar = self.confirmar_senha.get()
+        nome = self.nome.get().strip()
+        email = self.email.get().strip()
+        senha = self.senha.get().strip()
+        confirmar = self.confirmar_senha.get().strip()
 
         if not nome or not email or not senha or not confirmar:
             messagebox.showerror("Erro", "Preencha todos os campos.")
@@ -251,8 +250,23 @@ class CriarConta:
             messagebox.showerror("Erro", "As palavras-passe não coincidem.")
             return
 
-        messagebox.showinfo("Sucesso", "Conta criada com sucesso!")
-
+        try:
+            # ==========================================================
+            # CORREÇÃO AQUI: Importa do ficheiro database dentro da pasta database
+            # ==========================================================
+            from database.database import registar_novo_estudante
+            
+            # Executa a inserção dinâmica nas tabelas 'utilizadores' e 'estudantes'
+            sucesso = registar_novo_estudante(nome=nome, email=email, senha=senha)
+            
+            if sucesso:
+                messagebox.showinfo("Sucesso", "Conta de estudante criada com sucesso!")
+                self.abrir_login()
+            else:
+                messagebox.showerror("Erro", "Este email já se encontra registado no sistema.")
+                
+        except Exception as e:
+            messagebox.showerror("Erro", f"Não foi possível interagir com a base de dados:\n{e}")
     def abrir_login(self):
 
         from login import Login

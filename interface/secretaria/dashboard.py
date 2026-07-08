@@ -819,3 +819,80 @@ if __name__ == "__main__":
 
     app = App()
     app.mainloop()
+# interface/secretaria/dashboard_secretaria.py
+import customtkinter as ctk
+from PIL import Image
+from tkinter import messagebox
+import os
+
+# Importar as páginas existentes
+from estudantes import EstudantesPage
+from bolsas import BolsasPage
+from candidaturas import CandidaturasPage
+
+class AppSecretaria(ctk.CTk):
+    def __init__(self, id_utilizador, nome_utilizador):
+        super().__init__()
+        self.id_utilizador = id_utilizador
+        self.nome_utilizador = nome_utilizador
+
+        self.title("SIBES - Painel da Secretaria")
+        self.state("zoomed")
+        self.configure(fg_color="#F4F6FB")
+        
+        self.pagina_nome = "Painel Secretaria"
+        self.ui()
+
+    def ui(self):
+        self.container = ctk.CTkFrame(self, fg_color="#F4F6FB")
+        self.container.pack(fill="both", expand=True)
+
+        # Sidebar
+        self.sidebar = ctk.CTkFrame(self.container, width=260, fg_color="#081A3C", corner_radius=0)
+        self.sidebar.pack(side="left", fill="y")
+        self.sidebar.pack_propagate(False)
+
+        # Saudação e Nome da Secretaria
+        ctk.CTkLabel(self.sidebar, text="SIBES", font=("Segoe UI", 28, "bold"), text_color="white").pack(pady=(30, 5))
+        ctk.CTkLabel(self.sidebar, text=f"Secretaria: {self.nome_utilizador}", font=("Segoe UI", 14), text_color="#9CA3AF").pack(pady=(0, 30))
+
+        # Botões de Navegação
+        self.btn_estudantes = ctk.CTkButton(self.sidebar, text="Gestão de Estudantes", fg_color="transparent", anchor="w", command=self.abrir_estudantes)
+        self.btn_estudantes.pack(fill="x", padx=15, pady=5)
+
+        self.btn_bolsas = ctk.CTkButton(self.sidebar, text="Gestão de Bolsas", fg_color="transparent", anchor="w", command=self.abrir_bolsas)
+        self.btn_bolsas.pack(fill="x", padx=15, pady=5)
+
+        self.btn_candidaturas = ctk.CTkButton(self.sidebar, text="Candidaturas", fg_color="transparent", anchor="w", command=self.abrir_candidaturas)
+        self.btn_candidaturas.pack(fill="x", padx=15, pady=5)
+
+        # Botão Terminar Sessão
+        ctk.CTkButton(self.sidebar, text="Terminar Sessão", fg_color="#EF4444", hover_color="#DC2626", command=self.logout).pack(side="bottom", fill="x", padx=15, pady=20)
+
+        # Área de Conteúdo
+        self.area_conteudo = ctk.CTkFrame(self.container, fg_color="transparent")
+        self.area_conteudo.pack(side="right", fill="both", expand=True, padx=20, pady=20)
+
+        # Abrir página inicial por defeito
+        self.abrir_estudantes()
+
+    def limpar_conteudo(self):
+        for widget in self.area_conteudo.winfo_children():
+            widget.destroy()
+
+    def abrir_estudantes(self):
+        self.limpar_conteudo()
+        EstudantesPage(self.area_conteudo)
+
+    def abrir_bolsas(self):
+        self.limpar_conteudo()
+        BolsasPage(self.area_conteudo)
+
+    def abrir_candidaturas(self):
+        self.limpar_conteudo()
+        CandidaturasPage(self.area_conteudo)
+
+    def logout(self):
+        if messagebox.askyesno("Sair", "Deseja terminar a sessão?"):
+            self.destroy()
+            # Código para voltar ao login se necessário

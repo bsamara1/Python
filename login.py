@@ -2,15 +2,18 @@ import customtkinter as ctk
 from tkinter import messagebox
 from PIL import Image
 import sqlite3
-import customtkinter as ctk
-from database.database import DATABASE
-from interface.admin.dashboard import App
 
+# Importação interna do seu próprio módulo de base de dados
+from database.database import DATABASE, conectar
+
+# Importação da sua Dashboard do Admin
+from interface.admin.dashboard import App as DashboardAdmin
+from interface.secretaria.dashboard import AppSecretaria
+from interface.estudantes.dashboard import AppEstudante
 
 class Login:
 
     def __init__(self, root):
-
         self.root = root
         self.root.title("SIBES - Sistema Inteligente de Bolsas de Estudo")
         self.root.after(100, lambda: self.root.state("zoomed"))
@@ -19,73 +22,38 @@ class Login:
         ctk.set_default_color_theme("blue")
 
         self.root.configure(fg_color="#F5F7FB")
-
         self.criar_interface()
 
     def criar_interface(self):
-
         # ==================================================
         # CONTAINER PRINCIPAL
         # ==================================================
-        self.main = ctk.CTkFrame(
-            self.root,
-            fg_color="#F5F7FB"
-        )
+        self.main = ctk.CTkFrame(self.root, fg_color="#F5F7FB")
         self.main.pack(fill="both", expand=True)
 
         # ==================================================
         # SIDEBAR
         # ==================================================
-        self.sidebar = ctk.CTkFrame(
-            self.main,
-            width=120,
-            fg_color="#081A3C",
-            corner_radius=0
-        )
+        self.sidebar = ctk.CTkFrame(self.main, width=120, fg_color="#081A3C", corner_radius=0)
         self.sidebar.pack(side="left", fill="y")
         self.sidebar.pack_propagate(False)
 
         # ==================================================
         # ÁREA ESQUERDA
         # ==================================================
-        self.left_area = ctk.CTkFrame(
-            self.main,
-            fg_color="#F5F7FB"
-        )
-        self.left_area.pack(
-            side="left",
-            fill="both",
-            expand=True
-        )
+        self.left_area = ctk.CTkFrame(self.main, fg_color="#F5F7FB")
+        self.left_area.pack(side="left", fill="both", expand=True)
 
         # ==================================================
         # LOGO + SIBES
         # ==================================================
-        logo_frame = ctk.CTkFrame(
-            self.left_area,
-            fg_color="transparent"
-        )
-        logo_frame.place(
-            x=90,
-            y=130
-        )
+        logo_frame = ctk.CTkFrame(self.left_area, fg_color="transparent")
+        logo_frame.place(x=90, y=130)
 
         try:
-
             logo = Image.open("assets/logo.png")
-
-            self.logo_img = ctk.CTkImage(
-                light_image=logo,
-                dark_image=logo,
-                size=(180, 180)
-            )
-
-            ctk.CTkLabel(
-                logo_frame,
-                image=self.logo_img,
-                text=""
-            ).pack(side="left")
-
+            self.logo_img = ctk.CTkImage(light_image=logo, dark_image=logo, size=(180, 180))
+            ctk.CTkLabel(logo_frame, image=self.logo_img, text="").pack(side="left")
         except:
             pass
 
@@ -100,38 +68,20 @@ class Login:
         # SUBTÍTULO
         # ==================================================
         ctk.CTkLabel(
-        self.left_area,
-        text="Sistema Inteligente de\nBolsas de Estudo Sustentáveis",
-        font=("Segoe UI", 25, "normal"),
-        text_color="#4B5563",
-        justify="center"
-        ).place(
-            x=230,
-             y=300
-        )
+            self.left_area,
+            text="Sistema Inteligente de\nBolsas de Estudo Sustentáveis",
+            font=("Segoe UI", 25, "normal"),
+            text_color="#4B5563",
+            justify="center"
+        ).place(x=230, y=300)
 
         # ==================================================
         # IMAGEM PRINCIPAL
         # ==================================================
         try:
-
             img = Image.open("assets/img1.png")
-
-            self.main_img = ctk.CTkImage(
-                light_image=img,
-                dark_image=img,
-                size=(800, 550)
-            )
-
-            ctk.CTkLabel(
-                self.left_area,
-                image=self.main_img,
-                text=""
-            ).place(
-                x=20,
-                y=390
-            )
-
+            self.main_img = ctk.CTkImage(light_image=img, dark_image=img, size=(800, 550))
+            ctk.CTkLabel(self.left_area, image=self.main_img, text="").place(x=20, y=390)
         except:
             pass
 
@@ -147,17 +97,11 @@ class Login:
             border_width=1,
             border_color="#E5E7EB"
         )
-
-        self.card.place(
-            relx=0.74,
-            rely=0.5,
-            anchor="center"
-        )
-
+        self.card.place(relx=0.74, rely=0.5, anchor="center")
         self.card.pack_propagate(False)
 
         # ==================================================
-        # TÍTULO
+        # TÍTULOS DO CARD
         # ==================================================
         ctk.CTkLabel(
             self.card,
@@ -174,7 +118,7 @@ class Login:
         ).pack(pady=(0, 40))
 
         # ==================================================
-        # EMAIL
+        # CAMPO EMAIL
         # ==================================================
         ctk.CTkLabel(
             self.card,
@@ -183,16 +127,11 @@ class Login:
             text_color="#081A3C"
         ).pack(anchor="w", padx=65)
 
-        self.email = ctk.CTkEntry(
-            self.card,
-            width=450,
-            height=52,
-            placeholder_text="exemplo@email.com"
-        )
+        self.email = ctk.CTkEntry(self.card, width=450, height=52, placeholder_text="exemplo@email.com")
         self.email.pack(pady=(8, 20))
 
         # ==================================================
-        # SENHA
+        # CAMPO SENHA
         # ==================================================
         ctk.CTkLabel(
             self.card,
@@ -211,12 +150,9 @@ class Login:
         self.senha.pack(pady=(8, 20))
 
         # ==================================================
-        # OPÇÕES
+        # OPÇÕES ADICIONAIS
         # ==================================================
-        opcoes = ctk.CTkFrame(
-            self.card,
-            fg_color="transparent"
-        )
+        opcoes = ctk.CTkFrame(self.card, fg_color="transparent")
         opcoes.pack(fill="x", padx=65)
 
         self.lembrar_var = ctk.IntVar()
@@ -238,8 +174,8 @@ class Login:
         ).pack(side="right")
 
         # ==================================================
-        # BOTÃO LOGIN
-        # ==5================================================
+        # BOTÃO ENTRAR
+        # ==================================================
         ctk.CTkButton(
             self.card,
             text="Entrar",
@@ -250,12 +186,9 @@ class Login:
         ).pack(pady=(35, 25))
 
         # ==================================================
-        # REGISTO
+        # RODAPÉ (REGISTO DE CONTA)
         # ==================================================
-        rodape = ctk.CTkFrame(
-            self.card,
-            fg_color="transparent"
-        )
+        rodape = ctk.CTkFrame(self.card, fg_color="transparent")
         rodape.pack()
 
         ctk.CTkLabel(
@@ -275,89 +208,85 @@ class Login:
             command=self.criar_conta
         ).pack(side="left")
 
-        # ==================================================
-    # FUNÇÕES
+    # ==================================================
+    # FUNÇÕES DE EVENTO
     # ==================================================
 
     def criar_conta(self):
-
-        from criarConta import CriarConta
-
-        janela_registo = ctk.CTkToplevel(self.root)
-        janela_registo.title("Criar Conta")
-
-        CriarConta(janela_registo)
+        try:
+            from criarConta import CriarConta
+            janela_registo = ctk.CTkToplevel(self.root)
+            janela_registo.title("Criar Conta")
+            CriarConta(janela_registo)
+        except Exception as e:
+            messagebox.showerror("Erro", f"Não foi possível abrir o ecrã de registo:\n{e}")
 
     def esqueceu_senha(self):
-
-        messagebox.showinfo(
-            "Recuperação",
-            "Instruções enviadas para o seu email."
-        )
+        messagebox.showinfo("Recuperação", "Instruções enviadas para o seu email.")
 
     def login(self):
-
         email = self.email.get().strip()
         senha = self.senha.get().strip()
 
         if email == "" or senha == "":
-
-            messagebox.showwarning(
-                "Campos Vazios",
-                "Preencha o email e a palavra-passe."
-            )
+            messagebox.showwarning("Campos Vazios", "Preencha o email e a palavra-passe.")
             return
 
         try:
-
-            conn = sqlite3.connect("C:/Users/Surface Owner/Documents/PL/Trab.Final/database/sibes.db")
+            # Liga através da função centralizada do database.py para evitar caminhos estáticos
+            conn = conectar()
             cursor = conn.cursor()
 
+            # Captura colunas explícitas para evitar problemas de índices na tupla
             cursor.execute("""
-                SELECT *
+                SELECT id, nome, email, perfil 
                 FROM utilizadores
-                WHERE email = ?
-                AND senha = ?
+                WHERE email = ? AND senha = ?
             """, (email, senha))
 
             utilizador = cursor.fetchone()
-
             conn.close()
 
             if utilizador:
+                id_utilizador = utilizador[0]
+                nome_utilizador = utilizador[1]
+                email_utilizador = utilizador[2]
+                perfil = utilizador[3]
 
-                messagebox.showinfo(
-                    "Sucesso",
-                    "Login efetuado com sucesso!"
-                )
-
+                messagebox.showinfo("Sucesso", f"Login efetuado! Bem-vindo, {nome_utilizador}.")
+                
+                # Fecha a janela atual de login
                 self.root.destroy()
 
-                dashboard = App()
-                dashboard.mainloop()
+                # Redirecionamento baseado dinamicamente no Perfil do Utilizador logado
+                if perfil == "Administrador":
+                    dashboard = DashboardAdmin()
+                    dashboard.mainloop()
 
+                elif perfil == "Secretaria":
+                    # Mude para a sua classe real da Secretaria quando a criar
+                    messagebox.showinfo("Painel Secretaria", "A redirecionar para a Área da Secretaria...")
+                    # dashboard = AppSecretaria()
+                    # dashboard.mainloop()
+
+                elif perfil == "Estudante":
+                    # Para ecrãs dinâmicos de Estudante, passe as variáveis do utilizador atual por parâmetro
+                    messagebox.showinfo("Painel Estudante", f"A abrir o Painel Estudante para: {nome_utilizador}")
+                    # dashboard = AppEstudante(id_estudante=id_utilizador, email=email_utilizador)
+                    # dashboard.mainloop()
+                else:
+                    messagebox.showerror("Erro", "Tipo de perfil não mapeado no sistema.")
             else:
-
-                messagebox.showerror(
-                    "Erro",
-                    "Email ou palavra-passe inválidos."
-                )
+                messagebox.showerror("Erro", "Email ou palavra-passe incorretos.")
 
         except Exception as erro:
-
-            messagebox.showerror(
-                "Erro",
-                f"Erro ao aceder à base de dados:\n{erro}"
-            )
+            messagebox.showerror("Erro", f"Erro ao aceder à base de dados:\n{erro}")
 
 
 if __name__ == "__main__":
-
     ctk.set_appearance_mode("light")
     ctk.set_default_color_theme("blue")
 
     root = ctk.CTk()
-
     app = Login(root)
-
     root.mainloop()
