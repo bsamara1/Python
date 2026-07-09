@@ -5,13 +5,6 @@ from PIL import Image
 from tkinter import messagebox
 
 # Importação de todas as páginas locais
-from estudantes import EstudantesPage
-from bolsas import BolsasPage
-from candidaturas import CandidaturasPage
-from avaliacao import AvaliacaoPage
-from relatorios import RelatoriosPage
-from utilizadores import UtilizadoresPage
-from perfilUtilizador import PerfilUtilizador
 
 class DashboardApp(ctk.CTk):
     def __init__(self):

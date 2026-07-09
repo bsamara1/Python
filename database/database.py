@@ -28,7 +28,8 @@ def criar_base():
         nome TEXT NOT NULL,
         email TEXT UNIQUE,
         senha TEXT NOT NULL,
-        perfil TEXT NOT NULL, -- 'Administrador', 'Secretaria' ou 'Estudante'
+        perfil TEXT NOT NULL,
+        telefone TEXT NOT NULL, 
         data_criacao DATE
     )
     """)
@@ -69,19 +70,27 @@ def criar_base():
     # ===============================
     # TABELA BOLSAS
     # ===============================
+   
     cursor.execute("""
     CREATE TABLE IF NOT EXISTS bolsas (
         id INTEGER PRIMARY KEY AUTOINCREMENT,
         nome TEXT NOT NULL,
-        descricao TEXT,
         tipo TEXT,
         valor REAL,
-        vagas INTEGER,
-        data_inicio DATE,
-        data_fim DATE,
         estado TEXT
     )
     """)
+
+    # Se a tabela já existia antes sem a coluna 'tipo' ou 'estado', estes blocos evitam erros:
+    try:
+        cursor.execute("ALTER TABLE bolsas ADD COLUMN tipo TEXT;")
+    except sqlite3.OperationalError:
+        pass
+
+    try:
+        cursor.execute("ALTER TABLE bolsas ADD COLUMN estado TEXT;")
+    except sqlite3.OperationalError:
+        pass
 
     # ===============================
     # TABELA CANDIDATURAS
@@ -131,8 +140,8 @@ def criar_base():
     # ==================================================
     # 1. Administrador Padrão
     cursor.execute("""
-    INSERT OR IGNORE INTO utilizadores (nome, email, senha, perfil, data_criacao)
-    VALUES ('Administrador', 'admin@sibes.com', '1234', 'Administrador', DATE('now'))
+    INSERT OR IGNORE INTO utilizadores (nome, email, senha, perfil, telefone, data_criacao)
+    VALUES ('Benedita Samara Duarte Tavares', 'admin@sibes.com', '1234', 'Administrador', '9991122', DATE('now'))
     """)
 
     # 2. Secretária Padrão
@@ -147,20 +156,13 @@ def criar_base():
     VALUES ('Estudante Exemplo', 'estudante@sibes.com', '1234', 'Estudante', DATE('now'))
     """)
     
-    cursor.execute("""
-    INSERT OR IGNORE INTO estudantes (nome, email, telefone, universidade, curso, ano, media, rendimento, data_registo, data_criacao)
-    VALUES ('Estudante Exemplo', 'estudante@sibes.com', '999999999', 'U.P.', 'Informática', 1, 16.5, 600.0, DATE('now'), DATE('now'))
-    """)
-
+    
     conn.commit()
     conn.close()
 
 
 def registar_novo_estudante(nome, email, senha, telefone="", universidade="", curso="", ano=1, media=0.0, rendimento=0.0):
-    """
-    Regista dinamicamente um novo estudante no sistema.
-    Insere o utilizador na tabela geral para login e na tabela de estudantes.
-    """
+    
     conn = conectar()
     cursor = conn.cursor()
 
@@ -184,7 +186,23 @@ def registar_novo_estudante(nome, email, senha, telefone="", universidade="", cu
         return False
     finally:
         conn.close()
-
+        
+def registar_nova_bolsa(nome, tipo, valor, estado):
+    """Insere uma nova bolsa diretamente na base de dados"""
+    conn = conectar()
+    cursor = conn.cursor()
+    try:
+        cursor.execute("""
+            INSERT INTO bolsas (nome, tipo, valor, estado) 
+            VALUES (?, ?, ?, ?)
+        """, (nome, tipo, valor, estado))
+        conn.commit()
+        return True
+    except sqlite3.Error as e:
+        print(f"Erro ao registar bolsa: {e}")
+        return False
+    finally:
+        conn.close()
 
 if __name__ == "__main__":
     criar_base()

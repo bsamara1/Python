@@ -2,24 +2,24 @@ import customtkinter as ctk
 from PIL import Image
 from tkinter import messagebox
 import os
+from interface.admin.estudantes import EstudantesPage
+from interface.admin.bolsas import BolsasPage
+from interface.admin.candidaturas import Candidaturas
+from interface.admin.avaliacao import AvaliacaoPage
+from interface.admin.relatorios import RelatoriosPage
 
-# IMPORTAÇÃO DAS PÁGINAS REAIS
-from estudantes import EstudantesPage
-from bolsas import BolsasPage
-from candidaturas import CandidaturasPage
-from avaliacao import AvaliacaoPage
-from relatorios import RelatoriosPage
-from utilizadores import UtilizadoresPage
-from perfilUtilizador import PerfilUtilizador
+# Se o perfilUtilizador estiver na raiz do projeto:
+from interface.admin.perfilUtilizador import PerfilUtilizador
 
 # IMPORTAÇÃO DA BASE DE DADOS
 from database.database import criar_base
 
-class App(ctk.CTk):
+class App(ctk.CTkToplevel):
 
-    def __init__(self):
-        super().__init__()
+    def __init__(self,parent, id_utilizador_logado=None):
+        super().__init__(parent)
 
+        self.id_utilizador_logado = id_utilizador_logado
         self.title("SIBES")
         self.state("zoomed")
         self.configure(fg_color="#F4F6FB")
@@ -62,9 +62,8 @@ class App(ctk.CTk):
             ("Estudantes", icon("perfil.png"), self.mostrar_estudantes),
             ("Bolsas", icon("bolsa.png"), self.mostrar_bolsas),
             ("Candidaturas", icon("candidatura.png"), self.mostrar_candidaturas),
-            ("Avaliação (Prolog)", icon("avaliacao.png"), self.mostrar_avaliacao),
+            ("Avaliação ", icon("avaliacao.png"), self.mostrar_avaliacao),
             ("Relatórios", icon("relatorio.png"), self.mostrar_relatorios),
-            ("Utilizadores", icon("utilizadores.png"), self.mostrar_utilizadores),
             ("Definições", icon("definicao.png"), self.mostrar_perfil)
         ]
 
@@ -139,11 +138,11 @@ class App(ctk.CTk):
         self.destacar_botao_menu("Candidaturas")
         self.label_titulo.configure(text="Candidaturas")
         self.limpar_area_conteudo()
-        pagina = CandidaturasPage(self.area_conteudo)
+        pagina = Candidaturas(self.area_conteudo)
         pagina.pack(fill="both", expand=True, padx=35, pady=20)
 
     def mostrar_avaliacao(self):
-        self.destacar_botao_menu("Avaliação (Prolog)")
+        self.destacar_botao_menu("Avaliação")
         self.label_titulo.configure(text="Avaliação (Prolog)")
         self.limpar_area_conteudo()
         pagina = AvaliacaoPage(self.area_conteudo)
@@ -156,51 +155,79 @@ class App(ctk.CTk):
         pagina = RelatoriosPage(self.area_conteudo)
         pagina.pack(fill="both", expand=True, padx=35, pady=20)
 
-    def mostrar_utilizadores(self):
-        self.destacar_botao_menu("Utilizadores")
-        self.label_titulo.configure(text="Utilizadores")
-        self.limpar_area_conteudo()
-        pagina = UtilizadoresPage(self.area_conteudo)
-        pagina.pack(fill="both", expand=True, padx=35, pady=20)
 
     def mostrar_perfil(self):
         self.destacar_botao_menu("Definições")
         self.label_titulo.configure(text="Configurações da Conta")
         self.limpar_area_conteudo()
-        pagina = PerfilUtilizador(self.area_conteudo)
+        
+        # Correção: Passa self.id_utilizador_logado como o segundo argumento
+        pagina = PerfilUtilizador(self.area_conteudo, self.id_utilizador_logado)
         pagina.pack(fill="both", expand=True, padx=35, pady=20)
 
+   # Certifique-se de que a importação do "conectar" está no topo do seu dashboard.py se já não estiver:
+    # from database.database import conectar
+
     def main_ui(self):
-        self.main = ctk.CTkFrame(self.container, fg_color="#F5F7FB")
-        self.main.pack(side="left", fill="both", expand=True)
+        self.main_area = ctk.CTkFrame(self.container, fg_color="#F4F6FB")
+        self.main_area.pack(side="right", fill="both", expand=True)
 
-        top = ctk.CTkFrame(self.main, fg_color="#F5F7FB", height=80)
-        top.pack(fill="x")
-        top.pack_propagate(False)
+        # Cabeçalho do Dashboard
+        topo = ctk.CTkFrame(self.main_area, fg_color="transparent")
+        topo.pack(fill="x", padx=30, pady=(30, 15))
 
-        self.label_titulo = ctk.CTkLabel(top, text="Painel Principal", font=("Segoe UI", 24, "bold"), text_color="#142850")
-        self.label_titulo.pack(side="left", padx=30, pady=20)
+        self.label_titulo = ctk.CTkLabel(topo, text=self.pagina_nome, font=("Segoe UI", 24, "bold"), text_color="#142850")
+        self.label_titulo.pack(side="left")
 
-        user = ctk.CTkFrame(top, fg_color="transparent")
-        user.pack(side="right", padx=30)
+        # Área Dinâmica de Conteúdo
+        self.area_conteudo = ctk.CTkFrame(self.main_area, fg_color="transparent")
+        self.area_conteudo.pack(fill="both", expand=True, padx=20, pady=10)
 
-        avatar = self.carregar("assets/perfil.png", (40, 40))
-        seta = self.carregar("assets/seta.png", (14, 14))
-
-        ctk.CTkLabel(user, image=avatar, text="").pack(side="left")
-        texto = ctk.CTkFrame(user, fg_color="transparent")
-        texto.pack(side="left", padx=8)
-
-        ctk.CTkLabel(texto, text="Administrador", font=("Segoe UI", 14, "bold")).pack(anchor="w")
-        ctk.CTkLabel(texto, text="admin@sibes.cv", font=("Segoe UI", 11)).pack(anchor="w")
-        ctk.CTkLabel(user, image=seta, text="").pack(side="left")
-
-        ctk.CTkFrame(self.main, height=1, fg_color="#E5E7EB").pack(fill="x")
-
-        self.area_conteudo = ctk.CTkFrame(self.main, fg_color="transparent")
-        self.area_conteudo.pack(fill="both", expand=True)
-
+        # Inicializa o Painel Principal com os dados dinâmicos da Base de Dados
         self.mostrar_painel()  
+
+    def obter_totais_bd(self):
+        """Busca a contagem real de registos na base de dados SQLite"""
+        totais = {"estudantes": 0, "bolsas": 0, "candidaturas": 0, "aprovados": 0}
+        try:
+            from database.database import conectar
+            conn = conectar()
+            cursor = conn.cursor()
+
+            # 1. Total de Estudantes
+            cursor.execute("SELECT COUNT(*) FROM estudantes")
+            totais["estudantes"] = cursor.fetchone()[0]
+
+            # 2. Total de Bolsas Ativas (ou total geral, dependendo do que preferir)
+            cursor.execute("SELECT COUNT(*) FROM bolsas WHERE estado = 'Ativa'")
+            totais["bolsas"] = cursor.fetchone()[0]
+
+            # 3. Total de Candidaturas
+            cursor.execute("SELECT COUNT(*) FROM candidaturas")
+            totais["candidaturas"] = cursor.fetchone()[0]
+
+            # 4. Total de Candidaturas Aprovadas
+            cursor.execute("SELECT COUNT(*) FROM candidaturas WHERE estado = 'Aprovada'")
+            totais["aprovados"] = cursor.fetchone()[0]
+
+            conn.close()
+        except Exception as e:
+            print(f"Erro ao calcular métricas para os cards: {e}")
+        
+        return totais
+
+    def criar_cards_metricas(self, frame):
+        """Gera os cards superiores com os valores dinâmicos vindos da BD"""
+        # Procura as contagens reais
+        dados_reais = self.obter_totais_bd()
+
+        # Substituição dos valores fixos (ex: "120") pelas variáveis convertidas em string:
+        self.criar_card(frame, 0, "Estudantes", "Registados", str(dados_reais["estudantes"]), "#EBF5FF", "#C6E2FF", "assets/utilizadores.png")
+        self.criar_card(frame, 1, "Bolsas Ativas", "Disponíveis", str(dados_reais["bolsas"]), "#EAFBF3", "#C2F3DC", "assets/moedas.png")
+        self.criar_card(frame, 2, "Candidaturas", "Submetidas", str(dados_reais["candidaturas"]), "#FFF8EA", "#FFE2A8", "assets/formulario.png")
+        self.criar_card(frame, 3, "Aprovados", "Este mês", str(dados_reais["aprovados"]), "#F6EEFF", "#D9C6FF", "assets/certo.png")
+
+        
 
     def carregar_painel(self):
         frame = ctk.CTkFrame(self.area_conteudo, fg_color="transparent")

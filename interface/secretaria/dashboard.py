@@ -826,9 +826,7 @@ from tkinter import messagebox
 import os
 
 # Importar as páginas existentes
-from estudantes import EstudantesPage
-from bolsas import BolsasPage
-from candidaturas import CandidaturasPage
+
 
 class AppSecretaria(ctk.CTk):
     def __init__(self, id_utilizador, nome_utilizador):

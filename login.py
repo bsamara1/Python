@@ -2,15 +2,14 @@ import customtkinter as ctk
 from tkinter import messagebox
 from PIL import Image
 import sqlite3
-
+import os
 # Importação interna do seu próprio módulo de base de dados
 from database.database import DATABASE, conectar
 
 # Importação da sua Dashboard do Admin
 from interface.admin.dashboard import App as DashboardAdmin
-from interface.secretaria.dashboard import AppSecretaria
-from interface.estudantes.dashboard import AppEstudante
 
+base_dir = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 class Login:
 
     def __init__(self, root):
@@ -233,13 +232,12 @@ class Login:
             return
 
         try:
-            # Liga através da função centralizada do database.py para evitar caminhos estáticos
             conn = conectar()
             cursor = conn.cursor()
 
-            # Captura colunas explícitas para evitar problemas de índices na tupla
+            # Busca as 5 colunas essenciais
             cursor.execute("""
-                SELECT id, nome, email, perfil 
+                SELECT id, nome, email, perfil, telefone 
                 FROM utilizadores
                 WHERE email = ? AND senha = ?
             """, (email, senha))
@@ -252,28 +250,20 @@ class Login:
                 nome_utilizador = utilizador[1]
                 email_utilizador = utilizador[2]
                 perfil = utilizador[3]
+                telefone_utilizador = utilizador[4] # Captura o telefone do utilizador
 
                 messagebox.showinfo("Sucesso", f"Login efetuado! Bem-vindo, {nome_utilizador}.")
                 
-                # Fecha a janela atual de login
-                self.root.destroy()
+                # Oculta a janela de login para não quebrar animações do CustomTkinter
+                self.root.withdraw()
 
-                # Redirecionamento baseado dinamicamente no Perfil do Utilizador logado
                 if perfil == "Administrador":
-                    dashboard = DashboardAdmin()
+                    # Passa o ID detetado para a DashboardAdmin
+                    dashboard = DashboardAdmin(parent=self.root,id_utilizador_logado=id_utilizador)
+                    # Mata o processo do Python por completo quando a Dashboard for fechada
+                    dashboard.protocol("WM_DELETE_WINDOW", lambda: [dashboard.destroy(), self.root.destroy()])
+                    self.root.withdraw()
                     dashboard.mainloop()
-
-                elif perfil == "Secretaria":
-                    # Mude para a sua classe real da Secretaria quando a criar
-                    messagebox.showinfo("Painel Secretaria", "A redirecionar para a Área da Secretaria...")
-                    # dashboard = AppSecretaria()
-                    # dashboard.mainloop()
-
-                elif perfil == "Estudante":
-                    # Para ecrãs dinâmicos de Estudante, passe as variáveis do utilizador atual por parâmetro
-                    messagebox.showinfo("Painel Estudante", f"A abrir o Painel Estudante para: {nome_utilizador}")
-                    # dashboard = AppEstudante(id_estudante=id_utilizador, email=email_utilizador)
-                    # dashboard.mainloop()
                 else:
                     messagebox.showerror("Erro", "Tipo de perfil não mapeado no sistema.")
             else:
@@ -282,8 +272,9 @@ class Login:
         except Exception as erro:
             messagebox.showerror("Erro", f"Erro ao aceder à base de dados:\n{erro}")
 
-
 if __name__ == "__main__":
+    from database.database import criar_base
+    criar_base()
     ctk.set_appearance_mode("light")
     ctk.set_default_color_theme("blue")
 
