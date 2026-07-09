@@ -72,7 +72,7 @@ class Candidaturas(ctk.CTkFrame):
     def criar_interface(self):
         # 1. CABEÇALHO (Título e Descrição do Objetivo Geral)
         frame_topo = ctk.CTkFrame(self, fg_color="transparent")
-        frame_topo.pack(fill="x", pady=(10, 20))
+        frame_topo.pack(fill="x", pady=(20, 10))
 
         frame_titulos = ctk.CTkFrame(frame_topo, fg_color="transparent")
         frame_titulos.pack(side="left", anchor="w")
@@ -82,6 +82,9 @@ class Candidaturas(ctk.CTkFrame):
         
         lbl_subtitulo = ctk.CTkLabel(frame_titulos, text="Sistema Inteligente: Processamento e Elegibilidade de Candidatos.", font=("Segoe UI", 13), text_color="#6B7280")
         lbl_subtitulo.pack(anchor="w", pady=(2, 0))
+        
+        self.divisoria_topo = ctk.CTkFrame(self, height=1, fg_color="#E5E7EB")
+        self.divisoria_topo.pack(fill="x", pady=(10, 20))
 
         # 2. BARRA DE FILTROS E PESQUISA MODERNIZADA
         frame_filtros = ctk.CTkFrame(self, fg_color="transparent")

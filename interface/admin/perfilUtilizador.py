@@ -53,7 +53,7 @@ class PerfilUtilizador(ctk.CTkFrame):
         """Gera a interface gráfica do perfil"""
         # 1. CABEÇALHO DA PÁGINA
         frame_topo = ctk.CTkFrame(self, fg_color="transparent")
-        frame_topo.pack(fill="x", pady=(20, 15), padx=30)
+        frame_topo.pack(fill="x", pady=(20, 15))
 
         lbl_titulo = ctk.CTkLabel(frame_topo, text="Meu Perfil", font=("Segoe UI", 22, "bold"), text_color="#142850")
         lbl_titulo.pack(anchor="w")

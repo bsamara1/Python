@@ -8,7 +8,6 @@ from tkinter import messagebox
 try:
     from database.database import conectar
 except ImportError:
-    # Caso executes o ficheiro diretamente para testes
     BASE_DIR = os.path.abspath(os.path.join(os.path.dirname(__file__), ".."))
     sys.path.append(BASE_DIR)
     from database.database import conectar
@@ -17,6 +16,7 @@ class BolsasPage(ctk.CTkFrame):
     """Página de Gestão de Bolsas com layout moderno e atualizações em tempo real"""
 
     def __init__(self, master):
+        # Removemos os preenchimentos do container principal para a linha poder tocar nas bordas
         super().__init__(master, fg_color="#F4F6FB")
 
         self.bolsas = []
@@ -28,7 +28,7 @@ class BolsasPage(ctk.CTkFrame):
     def carregar_bolsas(self):
         """Carrega as bolsas ligando diretamente à base de dados central"""
         try:
-            conn = conectar() # Usa a ligação oficial do teu projeto
+            conn = conectar() 
             cursor = conn.cursor()
             cursor.execute("SELECT id, nome, tipo, valor, estado FROM bolsas")
             linhas = cursor.fetchall()
@@ -68,49 +68,65 @@ class BolsasPage(ctk.CTkFrame):
         self.atualizar_tabela()
 
     def criar_interface(self):
-        # 1. CABEÇALHO
+        # =========================================================================
+        # 1. TOPO DEDICADO DA PÁGINA (Título, Descrição e Botão alinhados)
+        # =========================================================================
         frame_topo = ctk.CTkFrame(self, fg_color="transparent")
-        frame_topo.pack(fill="x", pady=(10, 20))
+        frame_topo.pack(fill="x", pady=(20, 10))  # 20 de espaçamento no topo do ecrã
 
+        # Bloco de Texto (Alinhado à Esquerda)
         frame_titulos = ctk.CTkFrame(frame_topo, fg_color="transparent")
-        frame_titulos.pack(side="left", anchor="w")
+        frame_titulos.pack(side="left", fill="y", anchor="w")
         
-        lbl_titulo = ctk.CTkLabel(frame_titulos, text="Bolsas", font=("Segoe UI", 26, "bold"), text_color="#142850")
+        lbl_titulo = ctk.CTkLabel(frame_titulos, text="Bolsas", font=("Segoe UI", 24, "bold"), text_color="#142850")
         lbl_titulo.pack(anchor="w")
         
         lbl_subtitulo = ctk.CTkLabel(frame_titulos, text="Gerir todas as bolsas e editais registados.", font=("Segoe UI", 13), text_color="#6B7280")
         lbl_subtitulo.pack(anchor="w", pady=(2, 0))
 
+        # Botão de Ação "+ Nova Bolsa" (Alinhado à Direita)
         btn_adicionar = ctk.CTkButton(
-            frame_topo, text="+ Adicionar Bolsa", font=("Segoe UI", 13, "bold"),
-            fg_color="#1A5CFF", hover_color="#0043E0", text_color="white",
-            height=40, corner_radius=8, command=self.abrir_formulario_adicionar
+            frame_topo, text="+ Nova Bolsa", font=("Segoe UI", 13, "bold"),
+            fg_color="#1A5CFF", hover_color="#1046CD", text_color="white",
+            height=35, corner_radius=8, command=self.abrir_formulario_adicionar
         )
-        btn_adicionar.pack(side="right", anchor="e")
+        btn_adicionar.pack(side="right", anchor="center")
+        
+        # =========================================================================
+        # 2. LINHA DIVISÓRIA (Corta o ecrã horizontalmente igual à de Estudantes)
+        # =========================================================================
+        self.divisoria_topo = ctk.CTkFrame(self, height=1, fg_color="#E5E7EB")
+        self.divisoria_topo.pack(fill="x", pady=(10, 20))
 
-        # 2. BARRA DE PESQUISA
+        # =========================================================================
+        # 3. BARRA DE FILTROS E PESQUISA (Expandida)
+        # =========================================================================
         frame_filtros = ctk.CTkFrame(self, fg_color="transparent")
         frame_filtros.pack(fill="x", pady=(0, 15))
 
         self.entry_pesquisa = ctk.CTkEntry(
             frame_filtros, placeholder_text="🔍 Pesquisar por nome, ID ou tipo...",
-            font=("Segoe UI", 13), fg_color="white", border_color="#E5E7EB", height=40, corner_radius=8
+            font=("Segoe UI", 13), fg_color="white", border_color="#E5E7EB", height=35, corner_radius=8
         )
-        self.entry_pesquisa.pack(side="left", fill="x", expand=True, padx=(0, 15))
+        self.entry_pesquisa.pack(side="left", fill="x", expand=True, padx=(0, 10))
         self.entry_pesquisa.bind("<KeyRelease>", self.filtrar_dados)
 
         self.combo_filtro = ctk.CTkComboBox(
             frame_filtros, values=["Todos", "Ativo", "Inativo"], font=("Segoe UI", 13),
             dropdown_font=("Segoe UI", 13), fg_color="white", border_color="#E5E7EB",
-            button_color="#F3F4F6", button_hover_color="#E5E7EB", height=40, width=150, corner_radius=8,
+            button_color="#F3F4F6", button_hover_color="#E5E7EB", height=35, width=150, corner_radius=8,
             command=self.filtrar_dados
         )
         self.combo_filtro.set("Todos")
         self.combo_filtro.pack(side="right")
 
-        # 3. CARD DA TABELA
-        self.card_conteudo = ctk.CTkFrame(self, fg_color="white", corner_radius=12, border_width=1, border_color="#E5E7EB")
-        self.card_conteudo.pack(fill="both", expand=True)
+        # =========================================================================
+        # 4. CARD DA TABELA (Scrollable e totalmente aberto)
+        # =========================================================================
+        self.card_conteudo = ctk.CTkScrollableFrame(
+            self, fg_color="white", corner_radius=12, border_width=1, border_color="#E5E7EB"
+        )
+        self.card_conteudo.pack(fill="both", expand=True, padx=5, pady=5)
 
         self.atualizar_tabela()
 
@@ -249,18 +265,16 @@ class BolsasPage(ctk.CTkFrame):
             return
 
         try:
-            conn = conectar() # LIGAÇÃO À BASE DE DADOS CENTRALIZADA
+            conn = conectar() 
             cursor = conn.cursor()
 
             if id_bolsa is None:
-                # INSERIR NOVA BOLSA
                 cursor.execute("""
                     INSERT INTO bolsas (nome, tipo, valor, estado) 
                     VALUES (?, ?, ?, ?)
                 """, (nome, tipo, valor_numerico, estado))
                 messagebox.showinfo("Sucesso", "Nova bolsa adicionada com sucesso!")
             else:
-                # ATUALIZAR BOLSA EXISTENTE
                 cursor.execute("""
                     UPDATE bolsas 
                     SET nome=?, tipo=?, valor=?, estado=? 
@@ -271,10 +285,9 @@ class BolsasPage(ctk.CTkFrame):
             conn.commit()
             conn.close()
 
-            # ESTE BLOCO ESTÁ CORRIGIDO PARA ATUALIZAR A INTERFACE EM TEMPO REAL
             janela.destroy()
-            self.carregar_bolsas() # Recarrega os dados do SQLite
-            self.filtrar_dados()   # Redesenha a tabela no ecrã
+            self.carregar_bolsas() 
+            self.filtrar_dados()   
 
         except Exception as e:
             messagebox.showerror("Erro na Base de Dados", f"Não foi possível salvar os dados: {e}")

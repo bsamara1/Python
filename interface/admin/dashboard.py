@@ -16,7 +16,7 @@ from database.database import criar_base
 
 class App(ctk.CTkToplevel):
 
-    def __init__(self,parent, id_utilizador_logado=None):
+    def __init__(self, parent, id_utilizador_logado=None):
         super().__init__(parent)
 
         self.id_utilizador_logado = id_utilizador_logado
@@ -83,10 +83,11 @@ class App(ctk.CTkToplevel):
             btn.pack(fill="x", padx=15, pady=5)
             self.botoes[texto] = btn
 
-        ctk.CTkFrame(self.sidebar, height=1, fg_color="#35506E").pack(side="bottom", fill="x", padx=15, pady=(0, 10))
-        
+                
         logout = self.carregar("assets/sair.png", (20, 20))
-        ctk.CTkButton(
+        
+        # 1. Primeiro empacotamos o Botão (Fica na parte mais inferior)
+        self.btn_logout = ctk.CTkButton(
             self.sidebar,
             text="Terminar Sessão",
             image=logout,
@@ -97,10 +98,17 @@ class App(ctk.CTkToplevel):
             text_color="#FF6B6B",
             height=45,
             command=self.terminar_sessao
-        ).pack(side="bottom", fill="x", padx=15, pady=20)
+        )
+        self.btn_logout.pack(side="bottom", fill="x", padx=15, pady=(0, 20))
+
+        # 2. Depois empacotamos a Linha (Fica posicionada imediatamente acima do botão)
+        self.divisoria_logout = ctk.CTkFrame(self.sidebar, height=1, fg_color="#35506E")
+        self.divisoria_logout.pack(side="bottom", fill="x", padx=15, pady=(0, 15))
 
     def terminar_sessao(self):
         if messagebox.askyesno("Terminar Sessão", "Deseja realmente terminar a sessão?"):
+            if self.master:
+                self.master.deiconify()
             self.destroy()
 
     def limpar_area_conteudo(self):
@@ -114,7 +122,15 @@ class App(ctk.CTkToplevel):
             else:
                 botao.configure(fg_color="transparent")
 
+    def reorganizar_layout_com_topo(self):
+        """Remove e reinsere os elementos na ordem sequencial correta para evitar erros do Tkinter"""
+        self.area_conteudo.pack_forget()
+        self.top_bar.pack(fill="x")
+        self.divisoria_topo.pack(fill="x")
+        self.area_conteudo.pack(fill="both", expand=True)
+
     def mostrar_painel(self):
+        self.reorganizar_layout_com_topo()
         self.destacar_botao_menu("Painel Principal")
         self.label_titulo.configure(text="Painel Principal")
         self.limpar_area_conteudo()
@@ -122,112 +138,84 @@ class App(ctk.CTkToplevel):
 
     def mostrar_estudantes(self):
         self.destacar_botao_menu("Estudantes")
-        self.label_titulo.configure(text="Estudantes")
+        self.top_bar.pack_forget()
         self.limpar_area_conteudo()
         pagina = EstudantesPage(self.area_conteudo)
         pagina.pack(fill="both", expand=True, padx=35, pady=20)
 
     def mostrar_bolsas(self):
+        self.reorganizar_layout_com_topo()
         self.destacar_botao_menu("Bolsas")
-        self.label_titulo.configure(text="Bolsas")
+        self.top_bar.pack_forget()
+        self.divisoria_topo.pack_forget()
+        
         self.limpar_area_conteudo()
         pagina = BolsasPage(self.area_conteudo)
-        pagina.pack(fill="both", expand=True, padx=35, pady=20)
+        pagina.pack(fill="both", expand=True, padx=35, pady=(30, 20))
 
     def mostrar_candidaturas(self):
         self.destacar_botao_menu("Candidaturas")
-        self.label_titulo.configure(text="Candidaturas")
+        self.top_bar.pack_forget()
         self.limpar_area_conteudo()
         pagina = Candidaturas(self.area_conteudo)
         pagina.pack(fill="both", expand=True, padx=35, pady=20)
 
     def mostrar_avaliacao(self):
-        self.destacar_botao_menu("Avaliação")
-        self.label_titulo.configure(text="Avaliação (Prolog)")
+        self.reorganizar_layout_com_topo()
+        self.destacar_botao_menu("Avaliação ")
+        self.top_bar.pack_forget()
         self.limpar_area_conteudo()
         pagina = AvaliacaoPage(self.area_conteudo)
         pagina.pack(fill="both", expand=True, padx=35, pady=20)
 
     def mostrar_relatorios(self):
+        self.reorganizar_layout_com_topo()
         self.destacar_botao_menu("Relatórios")
-        self.label_titulo.configure(text="Relatórios")
+        self.top_bar.pack_forget()
         self.limpar_area_conteudo()
         pagina = RelatoriosPage(self.area_conteudo)
         pagina.pack(fill="both", expand=True, padx=35, pady=20)
 
-
     def mostrar_perfil(self):
+        self.reorganizar_layout_com_topo()
         self.destacar_botao_menu("Definições")
-        self.label_titulo.configure(text="Configurações da Conta")
+        self.top_bar.pack_forget()
         self.limpar_area_conteudo()
-        
-        # Correção: Passa self.id_utilizador_logado como o segundo argumento
         pagina = PerfilUtilizador(self.area_conteudo, self.id_utilizador_logado)
         pagina.pack(fill="both", expand=True, padx=35, pady=20)
 
-   # Certifique-se de que a importação do "conectar" está no topo do seu dashboard.py se já não estiver:
-    # from database.database import conectar
-
     def main_ui(self):
-        self.main_area = ctk.CTkFrame(self.container, fg_color="#F4F6FB")
-        self.main_area.pack(side="right", fill="both", expand=True)
+        self.main = ctk.CTkFrame(self.container, fg_color="#F5F7FB")
+        self.main.pack(side="left", fill="both", expand=True)
 
-        # Cabeçalho do Dashboard
-        topo = ctk.CTkFrame(self.main_area, fg_color="transparent")
-        topo.pack(fill="x", padx=30, pady=(30, 15))
+        self.top_bar = ctk.CTkFrame(self.main, fg_color="#F5F7FB", height=80)
+        self.top_bar.pack(fill="x")
+        self.top_bar.pack_propagate(False)
 
-        self.label_titulo = ctk.CTkLabel(topo, text=self.pagina_nome, font=("Segoe UI", 24, "bold"), text_color="#142850")
-        self.label_titulo.pack(side="left")
+        self.label_titulo = ctk.CTkLabel(self.top_bar, text="Painel Principal", font=("Segoe UI", 24, "bold"), text_color="#142850")
+        self.label_titulo.pack(side="left", padx=30, pady=20)
 
-        # Área Dinâmica de Conteúdo
-        self.area_conteudo = ctk.CTkFrame(self.main_area, fg_color="transparent")
-        self.area_conteudo.pack(fill="both", expand=True, padx=20, pady=10)
+        user = ctk.CTkFrame(self.top_bar, fg_color="transparent")
+        user.pack(side="right", padx=30)
 
-        # Inicializa o Painel Principal com os dados dinâmicos da Base de Dados
+        avatar = self.carregar("assets/perfil.png", (40, 40))
+        seta = self.carregar("assets/seta.png", (14, 14))
+
+        ctk.CTkLabel(user, image=avatar, text="").pack(side="left")
+        texto = ctk.CTkFrame(user, fg_color="transparent")
+        texto.pack(side="left", padx=8)
+
+        ctk.CTkLabel(texto, text="Administrador", font=("Segoe UI", 14, "bold")).pack(anchor="w")
+        ctk.CTkLabel(texto, text="admin@sibes.cv", font=("Segoe UI", 11)).pack(anchor="w")
+        ctk.CTkLabel(user, image=seta, text="").pack(side="left")
+
+        self.divisoria_topo = ctk.CTkFrame(self.main, height=1, fg_color="#E5E7EB")
+        self.divisoria_topo.pack(fill="x")
+
+        self.area_conteudo = ctk.CTkFrame(self.main, fg_color="transparent")
+        self.area_conteudo.pack(fill="both", expand=True)
+
         self.mostrar_painel()  
-
-    def obter_totais_bd(self):
-        """Busca a contagem real de registos na base de dados SQLite"""
-        totais = {"estudantes": 0, "bolsas": 0, "candidaturas": 0, "aprovados": 0}
-        try:
-            from database.database import conectar
-            conn = conectar()
-            cursor = conn.cursor()
-
-            # 1. Total de Estudantes
-            cursor.execute("SELECT COUNT(*) FROM estudantes")
-            totais["estudantes"] = cursor.fetchone()[0]
-
-            # 2. Total de Bolsas Ativas (ou total geral, dependendo do que preferir)
-            cursor.execute("SELECT COUNT(*) FROM bolsas WHERE estado = 'Ativa'")
-            totais["bolsas"] = cursor.fetchone()[0]
-
-            # 3. Total de Candidaturas
-            cursor.execute("SELECT COUNT(*) FROM candidaturas")
-            totais["candidaturas"] = cursor.fetchone()[0]
-
-            # 4. Total de Candidaturas Aprovadas
-            cursor.execute("SELECT COUNT(*) FROM candidaturas WHERE estado = 'Aprovada'")
-            totais["aprovados"] = cursor.fetchone()[0]
-
-            conn.close()
-        except Exception as e:
-            print(f"Erro ao calcular métricas para os cards: {e}")
-        
-        return totais
-
-    def criar_cards_metricas(self, frame):
-        """Gera os cards superiores com os valores dinâmicos vindos da BD"""
-        # Procura as contagens reais
-        dados_reais = self.obter_totais_bd()
-
-        # Substituição dos valores fixos (ex: "120") pelas variáveis convertidas em string:
-        self.criar_card(frame, 0, "Estudantes", "Registados", str(dados_reais["estudantes"]), "#EBF5FF", "#C6E2FF", "assets/utilizadores.png")
-        self.criar_card(frame, 1, "Bolsas Ativas", "Disponíveis", str(dados_reais["bolsas"]), "#EAFBF3", "#C2F3DC", "assets/moedas.png")
-        self.criar_card(frame, 2, "Candidaturas", "Submetidas", str(dados_reais["candidaturas"]), "#FFF8EA", "#FFE2A8", "assets/formulario.png")
-        self.criar_card(frame, 3, "Aprovados", "Este mês", str(dados_reais["aprovados"]), "#F6EEFF", "#D9C6FF", "assets/certo.png")
-
-        
 
     def carregar_painel(self):
         frame = ctk.CTkFrame(self.area_conteudo, fg_color="transparent")
@@ -303,7 +291,6 @@ class App(ctk.CTkToplevel):
 
 
 if __name__ == "__main__":
-    # CORREÇÃO: Garante o setup da DB antes do loop gráfico iniciar
     criar_base()
 
     ctk.set_appearance_mode("light")

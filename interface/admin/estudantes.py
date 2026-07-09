@@ -20,7 +20,7 @@ class EstudantesPage(ctk.CTkFrame):
         # 1. TOPO DEDICADO DA PÁGINA (Título, Descrição e Botão alinhados)
         # =========================================================================
         topo = ctk.CTkFrame(self, fg_color="transparent")
-        topo.pack(fill="x", pady=(0, 10))
+        topo.pack(fill="x", pady=(20, 10))
         
         # Bloco de Texto (Alinhado à Esquerda)
         titulo_frame = ctk.CTkFrame(topo, fg_color="transparent")
