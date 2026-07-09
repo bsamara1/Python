@@ -32,7 +32,17 @@ class Candidaturas(ctk.CTkFrame):
             cursor = conn.cursor()
             
             # Executa query trazendo as informações completas incluindo a Data
-            cursor.execute("SELECT id, estudante, bolsa, estado, data_candidatura FROM candidaturas")
+            cursor.execute("""
+                            SELECT 
+                                c.id, 
+                                e.nome AS estudante_nome, 
+                                b.nome AS bolsa_nome, 
+                                c.estado, 
+                                c.data_candidatura 
+                            FROM candidaturas c
+                            INNER JOIN estudantes e ON c.estudante_id = e.id
+                            INNER JOIN bolsas b ON c.bolsa_id = b.id
+                        """)            
             linhas = cursor.fetchall()
             
             self.candidaturas = []

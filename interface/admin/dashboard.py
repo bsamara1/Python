@@ -12,7 +12,7 @@ from interface.admin.relatorios import RelatoriosPage
 from interface.admin.perfilUtilizador import PerfilUtilizador
 
 # IMPORTAÇÃO DA BASE DE DADOS
-from database.database import criar_base
+from database.database import criar_base, conectar
 
 class App(ctk.CTkToplevel):
 
@@ -38,6 +38,34 @@ class App(ctk.CTkToplevel):
         if os.path.exists(caminho):
             return ctk.CTkImage(Image.open(caminho), size=tamanho)
         return None
+
+    def obter_estatisticas_reais(self):
+        """Procura as contagens reais na base de dados para alimentar os cards dinamicamente"""
+        stats = {"estudantes": 0, "bolsas": 0, "candidaturas": 0, "aprovados": 0}
+        try:
+            conn = conectar()
+            cursor = conn.cursor()
+            
+            # Conta o número real de estudantes
+            cursor.execute("SELECT COUNT(*) FROM estudantes")
+            stats["estudantes"] = cursor.fetchone()[0]
+            
+            # Conta o número real de bolsas
+            cursor.execute("SELECT COUNT(*) FROM bolsas")
+            stats["bolsas"] = cursor.fetchone()[0]
+            
+            # Conta o número real de candidaturas
+            cursor.execute("SELECT COUNT(*) FROM candidaturas")
+            stats["candidaturas"] = cursor.fetchone()[0]
+            
+            # Conta o número real de candidaturas aprovadas
+            cursor.execute("SELECT COUNT(*) FROM candidaturas WHERE estado = 'Aprovada'")
+            stats["aprovados"] = cursor.fetchone()[0]
+            
+            conn.close()
+        except Exception as e:
+            print(f"Erro ao carregar estatísticas reais para os cards: {e}")
+        return stats
 
     def sidebar_ui(self):
         self.sidebar = ctk.CTkFrame(self.container, width=240, fg_color="#0B2A4A")
@@ -108,9 +136,33 @@ class App(ctk.CTkToplevel):
     def terminar_sessao(self):
         if messagebox.askyesno("Terminar Sessão", "Deseja realmente terminar a sessão?"):
             if self.master:
-                self.master.deiconify()
-            self.destroy()
+                try:
+                    # 1. Varre os widgets à procura APENAS do campo que mascara a senha (show="*")
+                    def limpar_campo_senha(parent):
+                        for widget in parent.winfo_children():
+                            if isinstance(widget, ctk.CTkEntry):
+                                # Verifica se é o campo de palavra-passe pelo atributo 'show'
+                                if widget.cget("show") == "*":
+                                    widget.delete(0, 'end')
+                            # Continua a procurar em sub-frames, se existirem
+                            if widget.winfo_children():
+                                limpar_campo_senha(widget)
 
+                    limpar_campo_senha(self.master)
+                    
+                except Exception as e:
+                    print(f"Aviso ao limpar campo de senha: {e}")
+
+                # 2. Atualiza a interface gráfica em background antes de exibir a janela
+                self.master.update_idletasks()
+
+                # 3. Faz o ecrã de login reaparecer maximizado e com foco
+                self.master.deiconify()
+                self.master.state("zoomed")
+                self.master.focus_force()
+
+            # 4. Encerra o painel de administração atual de forma limpa
+            self.destroy()
     def limpar_area_conteudo(self):
         for widget in self.area_conteudo.winfo_children():
             widget.destroy()
@@ -123,7 +175,7 @@ class App(ctk.CTkToplevel):
                 botao.configure(fg_color="transparent")
 
     def reorganizar_layout_com_topo(self):
-        """Remove e reinsere os elementos na ordem sequencial correta para evitar erros do Tkinter"""
+        """Remove e reinsere os elements na ordem sequencial correta para evitar erros do Tkinter"""
         self.area_conteudo.pack_forget()
         self.top_bar.pack(fill="x")
         self.divisoria_topo.pack(fill="x")
@@ -188,27 +240,46 @@ class App(ctk.CTkToplevel):
         self.main = ctk.CTkFrame(self.container, fg_color="#F5F7FB")
         self.main.pack(side="left", fill="both", expand=True)
 
-        self.top_bar = ctk.CTkFrame(self.main, fg_color="#F5F7FB", height=80)
+        self.top_bar = ctk.CTkFrame(self.main, fg_color="#F5F7FB", height=70, corner_radius=0)
         self.top_bar.pack(fill="x")
         self.top_bar.pack_propagate(False)
 
-        self.label_titulo = ctk.CTkLabel(self.top_bar, text="Painel Principal", font=("Segoe UI", 24, "bold"), text_color="#142850")
+        self.label_titulo = ctk.CTkLabel(self.top_bar, text="Painel Principal", font=("Segoe UI", 22, "bold"), text_color="#142850")
         self.label_titulo.pack(side="left", padx=30, pady=20)
 
-        user = ctk.CTkFrame(self.top_bar, fg_color="transparent")
-        user.pack(side="right", padx=30)
+        # Container de Ações à Direita (Com Notificações e Avatar do Usuário)
+        actions_frame = ctk.CTkFrame(self.top_bar, fg_color="transparent")
+        actions_frame.pack(side="right", padx=30)
 
-        avatar = self.carregar("assets/perfil.png", (40, 40))
-        seta = self.carregar("assets/seta.png", (14, 14))
+        # Ícone de Notificações
+        bell_icon = self.carregar("assets/notificacao.png", (22, 22))
+        self.btn_notif = ctk.CTkButton(
+            actions_frame, image=bell_icon, text="", width=40, height=40,
+            fg_color="transparent", hover_color="#F0F2F5", command=lambda: print("Notificações clicadas")
+        )
+        self.btn_notif.pack(side="left", padx=(0, 10))
+
+        # Linha Divisória Vertical entre Notificação e Perfil
+        ctk.CTkFrame(actions_frame, width=1, height=30, fg_color="#E5E7EB").pack(side="left", padx=10)
+
+        # Perfil do Utilizador
+        user = ctk.CTkFrame(actions_frame, fg_color="transparent")
+        user.pack(side="left", padx=10)
+
+        avatar = self.carregar("assets/perfil.png", (38, 38))
+        seta = self.carregar("assets/seta.png", (12, 12))
 
         ctk.CTkLabel(user, image=avatar, text="").pack(side="left")
         texto = ctk.CTkFrame(user, fg_color="transparent")
-        texto.pack(side="left", padx=8)
+        texto.pack(side="left", padx=12)
 
-        ctk.CTkLabel(texto, text="Administrador", font=("Segoe UI", 14, "bold")).pack(anchor="w")
-        ctk.CTkLabel(texto, text="admin@sibes.cv", font=("Segoe UI", 11)).pack(anchor="w")
-        ctk.CTkLabel(user, image=seta, text="").pack(side="left")
+        ctk.CTkLabel(texto, text="Administrador", font=("Segoe UI", 13, "bold"), text_color="#142850").pack(anchor="w")
+        ctk.CTkLabel(texto, text="admin@sibes.cv", font=("Segoe UI", 11), text_color="#6B7280").pack(anchor="w")
+        
+        if seta:
+            ctk.CTkLabel(user, image=seta, text="").pack(side="left", padx=(5, 0))
 
+        # Linha Divisória Horizontal no fundo do Topo (Border bottom)
         self.divisoria_topo = ctk.CTkFrame(self.main, height=1, fg_color="#E5E7EB")
         self.divisoria_topo.pack(fill="x")
 
@@ -262,10 +333,13 @@ class App(ctk.CTkToplevel):
         frame.pack(fill="x", padx=35, pady=15)
         frame.grid_columnconfigure((0, 1, 2, 3), weight=1)
 
-        self.criar_card(frame, 0, "Estudantes", "Estudantes registados", "120", "#EEF4FF", "#C7D6FF", "assets/chapeu.png")
-        self.criar_card(frame, 1, "Bolsas", "Bolsas disponíveis", "15", "#ECFFF0", "#BFEFCC", "assets/livro.png")
-        self.criar_card(frame, 2, "Candidaturas", "Candidaturas", "85", "#FFF8EA", "#FFE2A8", "assets/formulario.png")
-        self.criar_card(frame, 3, "Aprovados", "Este mês", "40", "#F6EEFF", "#D9C6FF", "assets/certo.png")
+        # Procura as contagens atualizadas na base de dados SQLite
+        estatisticas = self.obter_estatisticas_reais()
+
+        self.criar_card(frame, 0, "Estudantes", "Estudantes registados", str(estatisticas["estudantes"]), "#EEF4FF", "#C7D6FF", "assets/chapeu.png")
+        self.criar_card(frame, 1, "Bolsas", "Bolsas disponíveis", str(estatisticas["bolsas"]), "#ECFFF0", "#BFEFCC", "assets/livro.png")
+        self.criar_card(frame, 2, "Candidaturas", "Candidaturas", str(estatisticas["candidaturas"]), "#FFF8EA", "#FFE2A8", "assets/formulario.png")
+        self.criar_card(frame, 3, "Aprovados", "Este mês", str(estatisticas["aprovados"]), "#F6EEFF", "#D9C6FF", "assets/certo.png")
 
     def criar_card(self, parent, col, titulo, subtitulo, valor, cor, circulo, icone):
         card = ctk.CTkFrame(parent, fg_color=cor, corner_radius=15, height=120)
@@ -285,9 +359,9 @@ class App(ctk.CTkToplevel):
         direita = ctk.CTkFrame(card, fg_color="transparent")
         direita.grid(row=0, column=1, sticky="e", padx=20)
 
-        ctk.CTkLabel(direita, text=valor, font=("Segoe UI", 26, "bold")).pack(anchor="e")
-        ctk.CTkLabel(direita, text=titulo, font=("Segoe UI", 12, "bold")).pack(anchor="e")
-        ctk.CTkLabel(direita, text=subtitulo, font=("Segoe UI", 11)).pack(anchor="e")
+        ctk.CTkLabel(direita, text=valor, font=("Segoe UI", 26, "bold"), text_color="#142850").pack(anchor="e")
+        ctk.CTkLabel(direita, text=titulo, font=("Segoe UI", 12, "bold"), text_color="#142850").pack(anchor="e")
+        ctk.CTkLabel(direita, text=subtitulo, font=("Segoe UI", 11), text_color="#6B7280").pack(anchor="e")
 
 
 if __name__ == "__main__":

@@ -8,8 +8,10 @@ from database.database import DATABASE, conectar
 
 # Importação da sua Dashboard do Admin
 from interface.admin.dashboard import App as DashboardAdmin
+import json
 
 base_dir = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+
 class Login:
 
     def __init__(self, root):
@@ -21,7 +23,29 @@ class Login:
         ctk.set_default_color_theme("blue")
 
         self.root.configure(fg_color="#F5F7FB")
+        
+        # --- CARREGAR PREFERÊNCIA LEMBRAR-ME ---
+        self.config_file = os.path.join(os.path.dirname(os.path.abspath(__file__)), "config.json")
+        self.email_guardado = ""
+        self.lembrar_ativo = 0
+        
+        if os.path.exists(self.config_file):
+            try:
+                with open(self.config_file, "r") as f:
+                    dados = json.load(f)
+                    self.email_guardado = dados.get("email", "")
+                    self.lembrar_ativo = dados.get("lembrar", 0)
+            except:
+                pass
+        # ----------------------------------------
+
         self.criar_interface()
+        
+        # --- APLICAR PREFERÊNCIA CARREGADA NA UI ---
+        if self.lembrar_ativo == 1 and self.email_guardado:
+            self.email.insert(0, self.email_guardado)
+            self.lembrar_var.set(1)
+        # -------------------------------------------
 
     def criar_interface(self):
         # ==================================================
@@ -181,6 +205,7 @@ class Login:
             width=450,
             height=55,
             font=("Segoe UI", 16, "bold"),
+            text_color="white",
             command=self.login
         ).pack(pady=(35, 25))
 
@@ -221,7 +246,142 @@ class Login:
             messagebox.showerror("Erro", f"Não foi possível abrir o ecrã de registo:\n{e}")
 
     def esqueceu_senha(self):
-        messagebox.showinfo("Recuperação", "Instruções enviadas para o seu email.")
+        # Cria uma janela Toplevel para redefinição de senha segura
+        janela_recuperar = ctk.CTkToplevel(self.root)
+        janela_recuperar.title("Redefinir Palavra-passe")
+        janela_recuperar.geometry("450x480")
+        janela_recuperar.resizable(False, False)
+        
+        # Garante que a janela abre por cima da principal e bloqueia o fundo
+        janela_recuperar.transient(self.root)
+        janela_recuperar.grab_set()
+
+        # Título interno da janela de recuperação
+        ctk.CTkLabel(
+            janela_recuperar, 
+            text="Recuperação de Conta Segura", 
+            font=("Segoe UI", 20, "bold"),
+            text_color="#081A3C"
+        ).pack(pady=(20, 5))
+
+        ctk.CTkLabel(
+            janela_recuperar, 
+            text="Confirme os seus dados para introduzir uma nova senha.", 
+            font=("Segoe UI", 12),
+            text_color="#6B7280"
+        ).pack(pady=(0, 20))
+
+        # --- CAMPOS DE VERIFICAÇÃO ---
+        ctk.CTkLabel(janela_recuperar, text="Email Registado", font=("Segoe UI", 12, "bold")).pack(anchor="w", padx=50)
+        email_rec_entry = ctk.CTkEntry(janela_recuperar, width=350, placeholder_text="exemplo@email.com")
+        email_rec_entry.pack(pady=(5, 15))
+
+        ctk.CTkLabel(janela_recuperar, text="Telefone Registado", font=("Segoe UI", 12, "bold")).pack(anchor="w", padx=50)
+        telefone_rec_entry = ctk.CTkEntry(janela_recuperar, width=350, placeholder_text="Digite o seu contacto telefónico")
+        telefone_rec_entry.pack(pady=(5, 15))
+
+        ctk.CTkLabel(janela_recuperar, text="Nova Palavra-passe", font=("Segoe UI", 12, "bold")).pack(anchor="w", padx=50)
+        nova_senha_entry = ctk.CTkEntry(janela_recuperar, width=350, placeholder_text="Digite a nova senha", show="*")
+        nova_senha_entry.pack(pady=(5, 25))
+
+        def processar_redefinicao():
+            email_rec = email_rec_entry.get().strip()
+            telefone_rec = telefone_rec_entry.get().strip()
+            nova_senha = nova_senha_entry.get().strip()
+
+            if not email_rec or not telefone_rec or not nova_senha:
+                messagebox.showwarning("Aviso", "Por favor, preencha todos os campos.", parent=janela_recuperar)
+                return
+            
+            if len(nova_senha) < 4:
+                messagebox.showwarning("Aviso", "A nova senha deve ter pelo menos 4 caracteres.", parent=janela_recuperar)
+                return
+
+            try:
+                conn = conectar()
+                cursor = conn.cursor()
+                
+                # Verifica se o email E o telefone batem com o mesmo registo
+                cursor.execute("""
+                    SELECT id FROM utilizadores 
+                    WHERE email = ? AND telefone = ?
+                """, (email_rec, telefone_rec))
+                
+                resultado = cursor.fetchone()
+
+                if resultado:
+                    utilizador_id = resultado[0]
+                    # Atualiza a senha de forma segura
+                    cursor.execute("""
+                        UPDATE utilizadores 
+                        SET senha = ? 
+                        WHERE id = ?
+                    """, (nova_senha, utilizador_id))
+                    
+                    conn.commit()
+                    conn.close()
+
+                    messagebox.showinfo(
+                        "Sucesso", 
+                        "Palavra-passe redefinida com sucesso!\nJá pode iniciar sessão com as novas credenciais.",
+                        parent=janela_recuperar
+                    )
+                    janela_recuperar.destroy()
+                else:
+                    conn.close()
+                    messagebox.showerror(
+                        "Erro de Validação", 
+                        "Os dados introduzidos não coincidem com nenhuma conta ativa.", 
+                        parent=janela_recuperar
+                    )
+                    
+            except Exception as e:
+                messagebox.showerror("Erro", f"Erro ao aceder à base de dados:\n{e}", parent=janela_recuperar)
+
+        # ÚNICO botão de ação dentro desta janela secundária
+        ctk.CTkButton(
+            janela_recuperar, 
+            text="Confirmar Alteração", 
+            width=350, 
+            height=40,
+            font=("Segoe UI", 14, "bold"),
+            command=processar_redefinicao
+        ).pack(pady=(10, 0))
+
+        def verificar_e_recuperar():
+            email_rec = email_rec_entry.get().strip()
+            if not email_rec:
+                messagebox.showwarning("Aviso", "Por favor, digite o email.", parent=janela_recuperar)
+                return
+            
+            try:
+                conn = conectar()
+                cursor = conn.cursor()
+                cursor.execute("SELECT senha FROM utilizadores WHERE email = ?", (email_rec,))
+                resultado = cursor.fetchone()
+                conn.close()
+
+                if resultado:
+                    # Em produção idealmente enviaria um email, aqui mostramos num alerta seguro
+                    # ou simulamos uma redefinição.
+                    senha_recuperada = resultado[0]
+                    messagebox.showinfo(
+                        "Sucesso", 
+                        f"Conta localizada!\nA sua palavra-passe é: {senha_recuperada}\n\n(Dica: Guarde-a num local seguro)",
+                        parent=janela_recuperar
+                    )
+                    janela_recuperar.destroy()
+                else:
+                    messagebox.showerror("Erro", "O email digitado não está registado no sistema.", parent=janela_recuperar)
+            except Exception as e:
+                messagebox.showerror("Erro", f"Erro ao aceder à base de dados:\n{e}", parent=janela_recuperar)
+
+        ctk.CTkButton(
+            janela_recuperar, 
+            text="Recuperar Palavra-passe", 
+            width=200, 
+            command=verificar_e_recuperar
+        ).pack(pady=15)
 
     def login(self):
         email = self.email.get().strip()
@@ -250,19 +410,29 @@ class Login:
                 nome_utilizador = utilizador[1]
                 email_utilizador = utilizador[2]
                 perfil = utilizador[3]
-                telefone_utilizador = utilizador[4] # Captura o telefone do utilizador
+                telefone_utilizador = utilizador[4] 
+
+                # --- GERIR PREFERÊNCIA LEMBRAR-ME ---
+                try:
+                    if self.lembrar_var.get() == 1:
+                        dados_config = {"email": email, "lembrar": 1}
+                    else:
+                        dados_config = {"email": "", "lembrar": 0}
+                    
+                    with open(self.config_file, "w") as f:
+                        json.dump(dados_config, f, indent=4)
+                except Exception as e:
+                    print(f"Erro ao salvar config: {e}")
+                # ------------------------------------
 
                 messagebox.showinfo("Sucesso", f"Login efetuado! Bem-vindo, {nome_utilizador}.")
                 
-                # Oculta a janela de login para não quebrar animações do CustomTkinter
+                # Oculta a janela de login
                 self.root.withdraw()
 
                 if perfil == "Administrador":
-                    # Passa o ID detetado para a DashboardAdmin
-                    dashboard = DashboardAdmin(parent=self.root,id_utilizador_logado=id_utilizador)
-                    # Mata o processo do Python por completo quando a Dashboard for fechada
+                    dashboard = DashboardAdmin(parent=self.root, id_utilizador_logado=id_utilizador)
                     dashboard.protocol("WM_DELETE_WINDOW", lambda: [dashboard.destroy(), self.root.destroy()])
-                    self.root.withdraw()
                     dashboard.mainloop()
                 else:
                     messagebox.showerror("Erro", "Tipo de perfil não mapeado no sistema.")

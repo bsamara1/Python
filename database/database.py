@@ -19,9 +19,10 @@ def criar_base():
     conn = conectar()
     cursor = conn.cursor()
 
-    # ===============================
+    # ==========================================================
     # TABELA UTILIZADORES (Autenticação)
-    # ===============================
+    # CORREÇÃO: 'telefone' agora aceita NULL para evitar erros no registo inicial
+    # ==========================================================
     cursor.execute("""
     CREATE TABLE IF NOT EXISTS utilizadores (
         id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -29,7 +30,7 @@ def criar_base():
         email TEXT UNIQUE,
         senha TEXT NOT NULL,
         perfil TEXT NOT NULL,
-        telefone TEXT NOT NULL, 
+        telefone TEXT, 
         data_criacao DATE
     )
     """)
@@ -54,11 +55,9 @@ def criar_base():
     """)
 
     # --- CORREÇÃO AUTOMÁTICA PARA BASES DE DADOS ANTIGAS ---
-    # Se a tabela já existia sem a coluna 'data_registo', este bloco força a sua criação
     try:
         cursor.execute("ALTER TABLE estudantes ADD COLUMN data_registo TEXT;")
     except sqlite3.OperationalError:
-        # Se o erro for "duplicate column name", significa que a coluna já existe, podemos ignorar
         pass
 
     try:
@@ -70,7 +69,6 @@ def criar_base():
     # ===============================
     # TABELA BOLSAS
     # ===============================
-   
     cursor.execute("""
     CREATE TABLE IF NOT EXISTS bolsas (
         id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -81,7 +79,6 @@ def criar_base():
     )
     """)
 
-    # Se a tabela já existia antes sem a coluna 'tipo' ou 'estado', estes blocos evitam erros:
     try:
         cursor.execute("ALTER TABLE bolsas ADD COLUMN tipo TEXT;")
     except sqlite3.OperationalError:
@@ -138,40 +135,35 @@ def criar_base():
     # ==================================================
     # UTILIZADORES PADRÃO (Para os primeiros testes)
     # ==================================================
-    # 1. Administrador Padrão
     cursor.execute("""
     INSERT OR IGNORE INTO utilizadores (nome, email, senha, perfil, telefone, data_criacao)
     VALUES ('Benedita Samara Duarte Tavares', 'admin@sibes.com', '1234', 'Administrador', '9991122', DATE('now'))
     """)
 
-    # 2. Secretária Padrão
     cursor.execute("""
     INSERT OR IGNORE INTO utilizadores (nome, email, senha, perfil, data_criacao)
     VALUES ('Secretária Geral', 'secretaria@sibes.com', '1234', 'Secretaria', DATE('now'))
     """)
 
-    # 3. Um estudante de teste inicial
     cursor.execute("""
     INSERT OR IGNORE INTO utilizadores (nome, email, senha, perfil, data_criacao)
     VALUES ('Estudante Exemplo', 'estudante@sibes.com', '1234', 'Estudante', DATE('now'))
     """)
-    
     
     conn.commit()
     conn.close()
 
 
 def registar_novo_estudante(nome, email, senha, telefone="", universidade="", curso="", ano=1, media=0.0, rendimento=0.0):
-    
     conn = conectar()
     cursor = conn.cursor()
 
     try:
-        # 1. Inserir na tabela de utilizadores para permitir o login futuro
+        # 1. Inserir na tabela de utilizadores (agora passando também a variável telefone)
         cursor.execute("""
-            INSERT INTO utilizadores (nome, email, senha, perfil, data_criacao)
-            VALUES (?, ?, ?, 'Estudante', DATE('now'))
-        """, (nome, email, senha))
+            INSERT INTO utilizadores (nome, email, senha, perfil, telefone, data_criacao)
+            VALUES (?, ?, ?, 'Estudante', ?, DATE('now'))
+        """, (nome, email, senha, telefone))
 
         # 2. Inserir na tabela de estudantes com os detalhes específicos
         cursor.execute("""
@@ -181,8 +173,12 @@ def registar_novo_estudante(nome, email, senha, telefone="", universidade="", cu
 
         conn.commit()
         return True
-    except sqlite3.IntegrityError:
-        # Erro se o email já estiver registado na base de dados (chave UNIQUE)
+    except sqlite3.IntegrityError as e:
+        # Mostra o erro real no terminal para debug
+        print(f"Erro de integridade no SQLite: {e}")
+        return False
+    except sqlite3.Error as e:
+        print(f"Erro no SQLite: {e}")
         return False
     finally:
         conn.close()

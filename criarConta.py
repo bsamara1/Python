@@ -1,16 +1,21 @@
 import customtkinter as ctk
 from tkinter import messagebox
 from PIL import Image
-from login import Login
+
+# Tenta importar dinamicamente dependendo da estrutura de pastas do projeto
+try:
+    from database import registar_novo_estudante
+except ImportError:
+    from database.database import registar_novo_estudante
 
 
 class CriarConta:
 
     def __init__(self, root):
-
         self.root = root
         self.root.title("SIBES - Sistema Inteligente de Bolsas de Estudo")
 
+        # Maximiza a janela de forma fluida
         self.root.after(100, lambda: self.root.state("zoomed"))
 
         ctk.set_appearance_mode("light")
@@ -21,7 +26,6 @@ class CriarConta:
         self.criar_interface()
 
     def criar_interface(self):
-
         # ==================================================
         # CONTAINER PRINCIPAL
         # ==================================================
@@ -48,19 +52,16 @@ class CriarConta:
 
         try:
             logo = Image.open("assets/logo.png")
-
             self.logo_img = ctk.CTkImage(
                 light_image=logo,
                 dark_image=logo,
                 size=(180, 180)
             )
-
             ctk.CTkLabel(
                 logo_frame,
                 image=self.logo_img,
                 text=""
             ).pack(side="left")
-
         except Exception:
             pass
 
@@ -87,19 +88,16 @@ class CriarConta:
         # ==================================================
         try:
             img = Image.open("assets/img1.png")
-
             self.main_img = ctk.CTkImage(
                 light_image=img,
                 dark_image=img,
                 size=(800, 550)
             )
-
             ctk.CTkLabel(
                 self.left_area,
                 image=self.main_img,
                 text=""
             ).place(x=20, y=390)
-
         except Exception:
             pass
 
@@ -115,12 +113,11 @@ class CriarConta:
             border_width=1,
             border_color="#E5E7EB"
         )
-
         self.card.place(relx=0.74, rely=0.5, anchor="center")
         self.card.pack_propagate(False)
 
         # ==================================================
-        # TÍTULO
+        # TÍTULOS
         # ==================================================
         ctk.CTkLabel(
             self.card,
@@ -137,69 +134,26 @@ class CriarConta:
         ).pack(pady=(0, 30))
 
         # ==================================================
-        # NOME
+        # ENTRADAS DE DADOS (INPUTS)
         # ==================================================
-        ctk.CTkLabel(self.card, text="Nome Completo",
-                     font=("Segoe UI", 14, "bold"),
-                     text_color="#081A3C").pack(anchor="w", padx=65)
-
-        self.nome = ctk.CTkEntry(
-            self.card,
-            width=450,
-            height=52,
-            placeholder_text="Digite o seu nome completo"
-        )
+        ctk.CTkLabel(self.card, text="Nome Completo", font=("Segoe UI", 14, "bold"), text_color="#081A3C").pack(anchor="w", padx=65)
+        self.nome = ctk.CTkEntry(self.card, width=450, height=52, placeholder_text="Digite o seu nome completo")
         self.nome.pack(pady=(8, 15))
 
-        # ==================================================
-        # EMAIL
-        # ==================================================
-        ctk.CTkLabel(self.card, text="Email",
-                     font=("Segoe UI", 14, "bold"),
-                     text_color="#081A3C").pack(anchor="w", padx=65)
-
-        self.email = ctk.CTkEntry(
-            self.card,
-            width=450,
-            height=52,
-            placeholder_text="exemplo@email.com"
-        )
+        ctk.CTkLabel(self.card, text="Email", font=("Segoe UI", 14, "bold"), text_color="#081A3C").pack(anchor="w", padx=65)
+        self.email = ctk.CTkEntry(self.card, width=450, height=52, placeholder_text="exemplo@email.com")
         self.email.pack(pady=(8, 15))
 
-        # ==================================================
-        # SENHA
-        # ==================================================
-        ctk.CTkLabel(self.card, text="Palavra-passe",
-                     font=("Segoe UI", 14, "bold"),
-                     text_color="#081A3C").pack(anchor="w", padx=65)
-
-        self.senha = ctk.CTkEntry(
-            self.card,
-            width=450,
-            height=52,
-            show="*",
-            placeholder_text="Digite a sua palavra-passe"
-        )
+        ctk.CTkLabel(self.card, text="Palavra-passe", font=("Segoe UI", 14, "bold"), text_color="#081A3C").pack(anchor="w", padx=65)
+        self.senha = ctk.CTkEntry(self.card, width=450, height=52, show="*", placeholder_text="Digite a sua palavra-passe")
         self.senha.pack(pady=(8, 15))
 
-        # ==================================================
-        # CONFIRMAR SENHA
-        # ==================================================
-        ctk.CTkLabel(self.card, text="Confirmar Palavra-passe",
-                     font=("Segoe UI", 14, "bold"),
-                     text_color="#081A3C").pack(anchor="w", padx=65)
-
-        self.confirmar_senha = ctk.CTkEntry(
-            self.card,
-            width=450,
-            height=52,
-            show="*",
-            placeholder_text="Confirme a sua palavra-passe"
-        )
+        ctk.CTkLabel(self.card, text="Confirmar Palavra-passe", font=("Segoe UI", 14, "bold"), text_color="#081A3C").pack(anchor="w", padx=65)
+        self.confirmar_senha = ctk.CTkEntry(self.card, width=450, height=52, show="*", placeholder_text="Confirme a sua palavra-passe")
         self.confirmar_senha.pack(pady=(8, 25))
 
         # ==================================================
-        # BOTÃO
+        # BOTÃO SUBMIT
         # ==================================================
         ctk.CTkButton(
             self.card,
@@ -211,17 +165,12 @@ class CriarConta:
         ).pack()
 
         # ==================================================
-        # FOOTER
+        # RODAPÉ (IR PARA LOGIN)
         # ==================================================
         rodape = ctk.CTkFrame(self.card, fg_color="transparent")
         rodape.pack(pady=(25, 0))
 
-        ctk.CTkLabel(
-            rodape,
-            text="Já tem conta?",
-            font=("Segoe UI", 14),
-            text_color="#6B7280"
-        ).pack(side="left")
+        ctk.CTkLabel(rodape, text="Já tem conta?", font=("Segoe UI", 14), text_color="#6B7280").pack(side="left")
 
         ctk.CTkButton(
             rodape,
@@ -234,7 +183,7 @@ class CriarConta:
         ).pack(side="left", padx=(5, 0))
 
     # ==================================================
-    # FUNÇÕES
+    # REGRAS DE NEGÓCIO E FLUXO
     # ==================================================
     def criar_conta(self):
         nome = self.nome.get().strip()
@@ -251,12 +200,7 @@ class CriarConta:
             return
 
         try:
-            # ==========================================================
-            # CORREÇÃO AQUI: Importa do ficheiro database dentro da pasta database
-            # ==========================================================
-            from database.database import registar_novo_estudante
-            
-            # Executa a inserção dinâmica nas tabelas 'utilizadores' e 'estudantes'
+            # Executa a função segura modificada na base de dados
             sucesso = registar_novo_estudante(nome=nome, email=email, senha=senha)
             
             if sucesso:
@@ -267,21 +211,19 @@ class CriarConta:
                 
         except Exception as e:
             messagebox.showerror("Erro", f"Não foi possível interagir com a base de dados:\n{e}")
-    def abrir_login(self):
 
+    def abrir_login(self):
+        # Limpa o ecrã atual destruindo o frame principal
+        self.main.destroy()
+
+        # Importa localmente para evitar problemas de importação circular
         from login import Login
 
-        janela_login = ctk.CTkToplevel(self.root)
-        janela_login.title("Login")
-
-        Login(janela_login)
+        # Reconstrói a interface de login sobre a mesma janela root
+        Login(self.root)
 
 
-# ==================================================
-# MAIN
-# ==================================================
 if __name__ == "__main__":
-
     root = ctk.CTk()
     app = CriarConta(root)
     root.mainloop()
