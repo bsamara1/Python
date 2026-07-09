@@ -3,11 +3,13 @@ from tkinter import messagebox
 from PIL import Image
 import sqlite3
 import os
-# Importação interna do seu próprio módulo de base de dados
+import re
+import random
+import string
+from datetime import datetime, timedelta
 from database.database import DATABASE, conectar
-
-# Importação da sua Dashboard do Admin
 from interface.admin.dashboard import App as DashboardAdmin
+from interface.estudantes.dashboard import App as DashboardEstudante
 import json
 
 base_dir = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
@@ -23,12 +25,11 @@ class Login:
         ctk.set_default_color_theme("blue")
 
         self.root.configure(fg_color="#F5F7FB")
-        
-        # --- CARREGAR PREFERÊNCIA LEMBRAR-ME ---
+
         self.config_file = os.path.join(os.path.dirname(os.path.abspath(__file__)), "config.json")
         self.email_guardado = ""
         self.lembrar_ativo = 0
-        
+
         if os.path.exists(self.config_file):
             try:
                 with open(self.config_file, "r") as f:
@@ -37,15 +38,14 @@ class Login:
                     self.lembrar_ativo = dados.get("lembrar", 0)
             except:
                 pass
-        # ----------------------------------------
 
+        self.mostrar_senha = False
+        self.login_em_andamento = False
         self.criar_interface()
-        
-        # --- APLICAR PREFERÊNCIA CARREGADA NA UI ---
+
         if self.lembrar_ativo == 1 and self.email_guardado:
             self.email.insert(0, self.email_guardado)
             self.lembrar_var.set(1)
-        # -------------------------------------------
 
     def criar_interface(self):
         # ==================================================
@@ -150,27 +150,68 @@ class Login:
             text_color="#081A3C"
         ).pack(anchor="w", padx=65)
 
-        self.email = ctk.CTkEntry(self.card, width=450, height=52, placeholder_text="exemplo@email.com")
-        self.email.pack(pady=(8, 20))
+        self.email = ctk.CTkEntry(
+            self.card,
+            width=450,
+            height=52,
+            placeholder_text="exemplo@email.com",
+            border_width=1,
+            border_color="#E5E7EB"
+        )
+        self.email.pack(pady=(8, 2))
+        self.email.bind("<KeyRelease>", lambda e: self.limpar_erro_email())
+
+        self.label_erro_email = ctk.CTkLabel(
+            self.card,
+            text="",
+            font=("Segoe UI", 11),
+            text_color="#EF4444"
+        )
+        self.label_erro_email.pack(anchor="w", padx=65, pady=(0, 15))
 
         # ==================================================
         # CAMPO SENHA
         # ==================================================
+        label_senha_frame = ctk.CTkFrame(self.card, fg_color="transparent")
+        label_senha_frame.pack(anchor="w", padx=65, pady=(15, 0))
+
         ctk.CTkLabel(
-            self.card,
+            label_senha_frame,
             text="Palavra-passe",
             font=("Segoe UI", 14, "bold"),
             text_color="#081A3C"
-        ).pack(anchor="w", padx=65)
+        ).pack(side="left")
+
+        self.btn_mostrar_senha = ctk.CTkButton(
+            label_senha_frame,
+            text="Mostrar",
+            fg_color="transparent",
+            hover=False,
+            text_color="#2563EB",
+            font=("Segoe UI", 11),
+            command=self.alternar_visibilidade_senha
+        )
+        self.btn_mostrar_senha.pack(side="right")
 
         self.senha = ctk.CTkEntry(
             self.card,
             width=450,
             height=52,
             placeholder_text="Digite a sua palavra-passe",
-            show="*"
+            show="*",
+            border_width=1,
+            border_color="#E5E7EB"
         )
-        self.senha.pack(pady=(8, 20))
+        self.senha.pack(pady=(8, 2))
+        self.senha.bind("<KeyRelease>", lambda e: self.limpar_erro_senha())
+
+        self.label_erro_senha = ctk.CTkLabel(
+            self.card,
+            text="",
+            font=("Segoe UI", 11),
+            text_color="#EF4444"
+        )
+        self.label_erro_senha.pack(anchor="w", padx=65, pady=(0, 15))
 
         # ==================================================
         # OPÇÕES ADICIONAIS
@@ -199,7 +240,7 @@ class Login:
         # ==================================================
         # BOTÃO ENTRAR
         # ==================================================
-        ctk.CTkButton(
+        self.btn_entrar = ctk.CTkButton(
             self.card,
             text="Entrar",
             width=450,
@@ -207,7 +248,8 @@ class Login:
             font=("Segoe UI", 16, "bold"),
             text_color="white",
             command=self.login
-        ).pack(pady=(35, 25))
+        )
+        self.btn_entrar.pack(pady=(35, 25))
 
         # ==================================================
         # RODAPÉ (REGISTO DE CONTA)
@@ -233,6 +275,66 @@ class Login:
         ).pack(side="left")
 
     # ==================================================
+    # FUNÇÕES DE VALIDAÇÃO
+    # ==================================================
+
+    def validar_email(self, email):
+        """Valida o formato do email"""
+        padrao = r'^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$'
+        return re.match(padrao, email) is not None
+
+    def mostrar_erro_email(self):
+        """Destaca campo de email com erro"""
+        self.email.configure(border_color="#EF4444", border_width=2)
+        self.label_erro_email.configure(text="❌ Email inválido", text_color="#EF4444")
+
+    def limpar_erro_email(self):
+        """Remove destaque de erro do email"""
+        self.email.configure(border_color="#E5E7EB", border_width=1)
+        self.label_erro_email.configure(text="")
+
+    def limpar_erro_senha(self):
+        """Remove destaque de erro da senha"""
+        self.senha.configure(border_color="#E5E7EB", border_width=1)
+        self.label_erro_senha.configure(text="")
+
+    def alternar_visibilidade_senha(self):
+        """Alterna entre mostrar e esconder a senha"""
+        self.mostrar_senha = not self.mostrar_senha
+        if self.mostrar_senha:
+            self.senha.configure(show="")
+            self.btn_mostrar_senha.configure(text="Esconder")
+        else:
+            self.senha.configure(show="*")
+            self.btn_mostrar_senha.configure(text="Mostrar")
+
+    def validar_formulario_login(self):
+        """Valida todo o formulário de login"""
+        email = self.email.get().strip()
+        senha = self.senha.get().strip()
+
+        valido = True
+
+        if not email:
+            self.mostrar_erro_email()
+            valido = False
+        elif not self.validar_email(email):
+            self.mostrar_erro_email()
+            valido = False
+        else:
+            self.limpar_erro_email()
+
+        if not senha:
+            self.senha.configure(border_color="#EF4444", border_width=2)
+            self.label_erro_senha.configure(text="❌ Palavra-passe obrigatória", text_color="#EF4444")
+            valido = False
+        else:
+            self.senha.configure(border_color="#E5E7EB", border_width=1)
+            self.label_erro_senha.configure(text="")
+
+        return valido
+
+    # ==================================================
     # FUNÇÕES DE EVENTO
     # ==================================================
 
@@ -246,158 +348,147 @@ class Login:
             messagebox.showerror("Erro", f"Não foi possível abrir o ecrã de registo:\n{e}")
 
     def esqueceu_senha(self):
-        # Cria uma janela Toplevel para redefinição de senha segura
+        """Sistema de recuperação de password em múltiplos passos com código de verificação"""
         janela_recuperar = ctk.CTkToplevel(self.root)
-        janela_recuperar.title("Redefinir Palavra-passe")
-        janela_recuperar.geometry("450x480")
+        janela_recuperar.title("Recuperação de Palavra-passe")
+        janela_recuperar.geometry("500x600")
         janela_recuperar.resizable(False, False)
-        
-        # Garante que a janela abre por cima da principal e bloqueia o fundo
         janela_recuperar.transient(self.root)
         janela_recuperar.grab_set()
 
-        # Título interno da janela de recuperação
-        ctk.CTkLabel(
-            janela_recuperar, 
-            text="Recuperação de Conta Segura", 
-            font=("Segoe UI", 20, "bold"),
-            text_color="#081A3C"
-        ).pack(pady=(20, 5))
+        # ===== PASSO 1: Verificar Email =====
+        def mostrar_passo1():
+            for widget in frame_conteudo.winfo_children():
+                widget.destroy()
 
-        ctk.CTkLabel(
-            janela_recuperar, 
-            text="Confirme os seus dados para introduzir uma nova senha.", 
-            font=("Segoe UI", 12),
-            text_color="#6B7280"
-        ).pack(pady=(0, 20))
+            ctk.CTkLabel(frame_conteudo, text="Passo 1: Verificar Email", font=("Segoe UI", 18, "bold"), text_color="#081A3C").pack(pady=(20, 10))
+            ctk.CTkLabel(frame_conteudo, text="Digite o email associado à sua conta.", font=("Segoe UI", 12), text_color="#6B7280").pack(pady=(0, 20))
 
-        # --- CAMPOS DE VERIFICAÇÃO ---
-        ctk.CTkLabel(janela_recuperar, text="Email Registado", font=("Segoe UI", 12, "bold")).pack(anchor="w", padx=50)
-        email_rec_entry = ctk.CTkEntry(janela_recuperar, width=350, placeholder_text="exemplo@email.com")
-        email_rec_entry.pack(pady=(5, 15))
+            ctk.CTkLabel(frame_conteudo, text="Email", font=("Segoe UI", 12, "bold")).pack(anchor="w", padx=30)
+            entry_email = ctk.CTkEntry(frame_conteudo, width=400, height=40, placeholder_text="seu.email@example.com", border_width=1, border_color="#E5E7EB")
+            entry_email.pack(pady=(5, 20), padx=30)
 
-        ctk.CTkLabel(janela_recuperar, text="Telefone Registado", font=("Segoe UI", 12, "bold")).pack(anchor="w", padx=50)
-        telefone_rec_entry = ctk.CTkEntry(janela_recuperar, width=350, placeholder_text="Digite o seu contacto telefónico")
-        telefone_rec_entry.pack(pady=(5, 15))
+            def verificar_email():
+                email = entry_email.get().strip()
+                if not email or not self.validar_email(email):
+                    messagebox.showwarning("Aviso", "Por favor, digite um email válido.", parent=janela_recuperar)
+                    return
 
-        ctk.CTkLabel(janela_recuperar, text="Nova Palavra-passe", font=("Segoe UI", 12, "bold")).pack(anchor="w", padx=50)
-        nova_senha_entry = ctk.CTkEntry(janela_recuperar, width=350, placeholder_text="Digite a nova senha", show="*")
-        nova_senha_entry.pack(pady=(5, 25))
+                try:
+                    conn = conectar()
+                    cursor = conn.cursor()
+                    cursor.execute("SELECT id, nome FROM utilizadores WHERE email = ?", (email,))
+                    resultado = cursor.fetchone()
+                    conn.close()
 
-        def processar_redefinicao():
-            email_rec = email_rec_entry.get().strip()
-            telefone_rec = telefone_rec_entry.get().strip()
-            nova_senha = nova_senha_entry.get().strip()
+                    if resultado:
+                        utilizador_id, nome_utilizador = resultado
+                        # Gerar código de verificação
+                        codigo = ''.join(random.choices(string.digits, k=6))
+                        mostrar_passo2(email, utilizador_id, codigo)
+                    else:
+                        messagebox.showerror("Erro", "Este email não está registado no sistema.", parent=janela_recuperar)
+                except Exception as e:
+                    messagebox.showerror("Erro", f"Erro ao aceder à BD: {e}", parent=janela_recuperar)
 
-            if not email_rec or not telefone_rec or not nova_senha:
-                messagebox.showwarning("Aviso", "Por favor, preencha todos os campos.", parent=janela_recuperar)
-                return
-            
-            if len(nova_senha) < 4:
-                messagebox.showwarning("Aviso", "A nova senha deve ter pelo menos 4 caracteres.", parent=janela_recuperar)
-                return
+            ctk.CTkButton(frame_conteudo, text="Continuar", font=("Segoe UI", 13, "bold"), height=40, width=400, command=verificar_email).pack(pady=(20, 0), padx=30)
 
-            try:
-                conn = conectar()
-                cursor = conn.cursor()
-                
-                # Verifica se o email E o telefone batem com o mesmo registo
-                cursor.execute("""
-                    SELECT id FROM utilizadores 
-                    WHERE email = ? AND telefone = ?
-                """, (email_rec, telefone_rec))
-                
-                resultado = cursor.fetchone()
+        # ===== PASSO 2: Código de Verificação =====
+        def mostrar_passo2(email, usuario_id, codigo_verificacao):
+            for widget in frame_conteudo.winfo_children():
+                widget.destroy()
 
-                if resultado:
-                    utilizador_id = resultado[0]
-                    # Atualiza a senha de forma segura
-                    cursor.execute("""
-                        UPDATE utilizadores 
-                        SET senha = ? 
-                        WHERE id = ?
-                    """, (nova_senha, utilizador_id))
-                    
+            ctk.CTkLabel(frame_conteudo, text="Passo 2: Verificação", font=("Segoe UI", 18, "bold"), text_color="#081A3C").pack(pady=(20, 10))
+            ctk.CTkLabel(frame_conteudo, text=f"Um código foi enviado para {email}", font=("Segoe UI", 11), text_color="#6B7280").pack(pady=(0, 15))
+
+            ctk.CTkLabel(frame_conteudo, text="Código de Verificação", font=("Segoe UI", 12, "bold")).pack(anchor="w", padx=30)
+            entry_codigo = ctk.CTkEntry(frame_conteudo, width=400, height=40, placeholder_text="Código de 6 dígitos", border_width=1, border_color="#E5E7EB")
+            entry_codigo.pack(pady=(5, 20), padx=30)
+
+            label_info = ctk.CTkLabel(frame_conteudo, text="Simulação: código = " + codigo_verificacao, font=("Segoe UI", 10), text_color="#F59E0B")
+            label_info.pack(pady=(0, 15))
+
+            def verificar_codigo():
+                codigo_digitado = entry_codigo.get().strip()
+                if codigo_digitado != codigo_verificacao:
+                    messagebox.showwarning("Aviso", "Código incorreto. Tente novamente.", parent=janela_recuperar)
+                    return
+                mostrar_passo3(email, usuario_id)
+
+            ctk.CTkButton(frame_conteudo, text="Verificar", font=("Segoe UI", 13, "bold"), height=40, width=400, command=verificar_codigo).pack(pady=(20, 0), padx=30)
+
+        # ===== PASSO 3: Nova Palavra-passe =====
+        def mostrar_passo3(email, usuario_id):
+            for widget in frame_conteudo.winfo_children():
+                widget.destroy()
+
+            ctk.CTkLabel(frame_conteudo, text="Passo 3: Nova Palavra-passe", font=("Segoe UI", 18, "bold"), text_color="#081A3C").pack(pady=(20, 10))
+            ctk.CTkLabel(frame_conteudo, text="Digite uma nova palavra-passe segura.", font=("Segoe UI", 12), text_color="#6B7280").pack(pady=(0, 20))
+
+            ctk.CTkLabel(frame_conteudo, text="Nova Palavra-passe", font=("Segoe UI", 12, "bold")).pack(anchor="w", padx=30)
+            entry_senha = ctk.CTkEntry(frame_conteudo, width=400, height=40, placeholder_text="Mínimo 6 caracteres", show="*", border_width=1, border_color="#E5E7EB")
+            entry_senha.pack(pady=(5, 15), padx=30)
+
+            ctk.CTkLabel(frame_conteudo, text="Confirmar Palavra-passe", font=("Segoe UI", 12, "bold")).pack(anchor="w", padx=30)
+            entry_confirmar = ctk.CTkEntry(frame_conteudo, width=400, height=40, placeholder_text="Confirme a palavra-passe", show="*", border_width=1, border_color="#E5E7EB")
+            entry_confirmar.pack(pady=(5, 20), padx=30)
+
+            def atualizar_senha():
+                senha = entry_senha.get().strip()
+                confirmar = entry_confirmar.get().strip()
+
+                if not senha or not confirmar:
+                    messagebox.showwarning("Aviso", "Por favor, preencha todos os campos.", parent=janela_recuperar)
+                    return
+
+                if len(senha) < 6:
+                    messagebox.showwarning("Aviso", "A palavra-passe deve ter mínimo 6 caracteres.", parent=janela_recuperar)
+                    return
+
+                if senha != confirmar:
+                    messagebox.showwarning("Aviso", "As palavras-passe não coincidem.", parent=janela_recuperar)
+                    return
+
+                try:
+                    conn = conectar()
+                    cursor = conn.cursor()
+                    cursor.execute("UPDATE utilizadores SET senha = ? WHERE id = ?", (senha, usuario_id))
                     conn.commit()
                     conn.close()
 
-                    messagebox.showinfo(
-                        "Sucesso", 
-                        "Palavra-passe redefinida com sucesso!\nJá pode iniciar sessão com as novas credenciais.",
-                        parent=janela_recuperar
-                    )
+                    messagebox.showinfo("Sucesso", "Palavra-passe alterada com sucesso!\n\nJá pode fazer login com a nova palavra-passe.", parent=janela_recuperar)
                     janela_recuperar.destroy()
-                else:
-                    conn.close()
-                    messagebox.showerror(
-                        "Erro de Validação", 
-                        "Os dados introduzidos não coincidem com nenhuma conta ativa.", 
-                        parent=janela_recuperar
-                    )
-                    
-            except Exception as e:
-                messagebox.showerror("Erro", f"Erro ao aceder à base de dados:\n{e}", parent=janela_recuperar)
+                except Exception as e:
+                    messagebox.showerror("Erro", f"Erro ao atualizar: {e}", parent=janela_recuperar)
 
-        # ÚNICO botão de ação dentro desta janela secundária
-        ctk.CTkButton(
-            janela_recuperar, 
-            text="Confirmar Alteração", 
-            width=350, 
-            height=40,
-            font=("Segoe UI", 14, "bold"),
-            command=processar_redefinicao
-        ).pack(pady=(10, 0))
+            ctk.CTkButton(frame_conteudo, text="Atualizar Palavra-passe", font=("Segoe UI", 13, "bold"), height=40, width=400, command=atualizar_senha).pack(pady=(20, 0), padx=30)
 
-        def verificar_e_recuperar():
-            email_rec = email_rec_entry.get().strip()
-            if not email_rec:
-                messagebox.showwarning("Aviso", "Por favor, digite o email.", parent=janela_recuperar)
-                return
-            
-            try:
-                conn = conectar()
-                cursor = conn.cursor()
-                cursor.execute("SELECT senha FROM utilizadores WHERE email = ?", (email_rec,))
-                resultado = cursor.fetchone()
-                conn.close()
+        # Frame principal para conteúdo dinâmico
+        frame_conteudo = ctk.CTkFrame(janela_recuperar, fg_color="transparent")
+        frame_conteudo.pack(fill="both", expand=True, padx=10, pady=10)
 
-                if resultado:
-                    # Em produção idealmente enviaria um email, aqui mostramos num alerta seguro
-                    # ou simulamos uma redefinição.
-                    senha_recuperada = resultado[0]
-                    messagebox.showinfo(
-                        "Sucesso", 
-                        f"Conta localizada!\nA sua palavra-passe é: {senha_recuperada}\n\n(Dica: Guarde-a num local seguro)",
-                        parent=janela_recuperar
-                    )
-                    janela_recuperar.destroy()
-                else:
-                    messagebox.showerror("Erro", "O email digitado não está registado no sistema.", parent=janela_recuperar)
-            except Exception as e:
-                messagebox.showerror("Erro", f"Erro ao aceder à base de dados:\n{e}", parent=janela_recuperar)
-
-        ctk.CTkButton(
-            janela_recuperar, 
-            text="Recuperar Palavra-passe", 
-            width=200, 
-            command=verificar_e_recuperar
-        ).pack(pady=15)
+        mostrar_passo1()
 
     def login(self):
+        if not self.validar_formulario_login():
+            return
+
+        if self.login_em_andamento:
+            return
+
+        self.login_em_andamento = True
+        self.btn_entrar.configure(state="disabled", text="A processar...")
+        self.root.update()
+
         email = self.email.get().strip()
         senha = self.senha.get().strip()
-
-        if email == "" or senha == "":
-            messagebox.showwarning("Campos Vazios", "Preencha o email e a palavra-passe.")
-            return
 
         try:
             conn = conectar()
             cursor = conn.cursor()
 
-            # Busca as 5 colunas essenciais
             cursor.execute("""
-                SELECT id, nome, email, perfil, telefone 
+                SELECT id, nome, email, perfil, telefone
                 FROM utilizadores
                 WHERE email = ? AND senha = ?
             """, (email, senha))
@@ -408,39 +499,45 @@ class Login:
             if utilizador:
                 id_utilizador = utilizador[0]
                 nome_utilizador = utilizador[1]
-                email_utilizador = utilizador[2]
                 perfil = utilizador[3]
-                telefone_utilizador = utilizador[4] 
 
-                # --- GERIR PREFERÊNCIA LEMBRAR-ME ---
                 try:
                     if self.lembrar_var.get() == 1:
                         dados_config = {"email": email, "lembrar": 1}
                     else:
                         dados_config = {"email": "", "lembrar": 0}
-                    
+
                     with open(self.config_file, "w") as f:
                         json.dump(dados_config, f, indent=4)
                 except Exception as e:
                     print(f"Erro ao salvar config: {e}")
-                # ------------------------------------
 
                 messagebox.showinfo("Sucesso", f"Login efetuado! Bem-vindo, {nome_utilizador}.")
-                
-                # Oculta a janela de login
                 self.root.withdraw()
 
                 if perfil == "Administrador":
                     dashboard = DashboardAdmin(parent=self.root, id_utilizador_logado=id_utilizador)
                     dashboard.protocol("WM_DELETE_WINDOW", lambda: [dashboard.destroy(), self.root.destroy()])
                     dashboard.mainloop()
+                elif perfil == "Estudante":
+                    dashboard = DashboardEstudante(parent=self.root, id_utilizador_logado=id_utilizador)
+                    dashboard.protocol("WM_DELETE_WINDOW", lambda: [dashboard.destroy(), self.root.destroy()])
+                    dashboard.mainloop()
                 else:
-                    messagebox.showerror("Erro", "Tipo de perfil não mapeado no sistema.")
+                    messagebox.showerror("Erro", f"Tipo de perfil não mapeado no sistema: {perfil}")
+                    self.root.deiconify()
             else:
-                messagebox.showerror("Erro", "Email ou palavra-passe incorretos.")
+                self.email.configure(border_color="#EF4444", border_width=2)
+                self.senha.configure(border_color="#EF4444", border_width=2)
+                messagebox.showerror("Erro de Autenticação", "Email ou palavra-passe incorretos.")
 
         except Exception as erro:
             messagebox.showerror("Erro", f"Erro ao aceder à base de dados:\n{erro}")
+
+        finally:
+            self.login_em_andamento = False
+            self.btn_entrar.configure(state="normal", text="Entrar")
+            self.root.update()
 
 if __name__ == "__main__":
     from database.database import criar_base

@@ -1,821 +1,408 @@
 import customtkinter as ctk
-from PIL import Image
-from tkinter import messagebox
-import os
+from tkinter import messagebox, ttk
+import sqlite3
+from database.database import conectar
 from interface.admin.perfilUtilizador import PerfilUtilizador
-from interface.estudantes.estudantes import Estudantes
+from datetime import datetime
+import matplotlib.pyplot as plt
+from matplotlib.backends.backend_tkagg import FigureCanvasTkAgg
+from matplotlib.figure import Figure
 
 
-class App(ctk.CTk):
+class DashboardEstudante(ctk.CTk):
+    """Dashboard Completo do Estudante - SIBES v1.0"""
 
-    def __init__(self):
+    def __init__(self, parent=None, id_utilizador_logado=None):
         super().__init__()
 
-        self.title("SIBES")
+        self.parent = parent
+        self.id_utilizador_logado = id_utilizador_logado
+        self.title("SIBES - Painel do Estudante")
         self.state("zoomed")
         self.configure(fg_color="#F4F6FB")
 
-        self.pagina_nome = "Painel Principal"
+        # Carregar dados do utilizador
+        self.nome_usuario = self.obter_nome()
+        self.email_usuario = self.obter_email()
 
-        self.ui()
+        self.criar_interface()
 
-    # ==========================================
-    # INTERFACE PRINCIPAL
-    # ==========================================
-
-    def ui(self):
-
-        self.container = ctk.CTkFrame(
-            self,
-            fg_color="#F4F6FB"
-        )
-
-        self.container.pack(
-            fill="both",
-            expand=True
-        )
-
-        self.sidebar_ui()
-        self.main_ui()
-
-    # ==========================================
-    # CARREGAR IMAGENS
-    # ==========================================
-
-    def carregar(self, caminho, tamanho):
-
-        if os.path.exists(caminho):
-            return ctk.CTkImage(
-                Image.open(caminho),
-                size=tamanho
-            )
-
-        return None
-
-    # ==========================================
-    # SIDEBAR
-    # ==========================================
-
-    def sidebar_ui(self):
-
-        self.sidebar = ctk.CTkFrame(
-            self.container,
-            width=240,
-            fg_color="#0B2A4A"
-        )
-
-        self.sidebar.pack(
-            side="left",
-            fill="y"
-        )
-
-        self.sidebar.pack_propagate(False)
-
-        logo = self.carregar(
-            "assets/logo.png",
-            (40,40)
-        )
-
-        logo_frame = ctk.CTkFrame(
-            self.sidebar,
-            fg_color="transparent"
-        )
-
-        logo_frame.pack(
-            fill="x",
-            padx=20,
-            pady=(25,35)
-        )
-
-        ctk.CTkLabel(
-            logo_frame,
-            image=logo,
-            text=""
-        ).grid(
-            row=0,
-            column=0,
-            rowspan=2,
-            padx=10
-        )
-
-        ctk.CTkLabel(
-            logo_frame,
-            text="SIBES",
-            font=("Segoe UI",20,"bold"),
-            text_color="white"
-        ).grid(
-            row=0,
-            column=1,
-            sticky="w"
-        )
-
-        ctk.CTkLabel(
-            logo_frame,
-            text="Sistema Inteligente de Bolsas Sustentáveis",
-            font=("Segoe UI",11),
-            text_color="#D6E4F0"
-        ).grid(
-            row=1,
-            column=1,
-            sticky="w"
-        )
-
-        def icon(nome):
-            return self.carregar(
-                f"assets/{nome}",
-                (20,20)
-            )
-
-        self.botoes = {}
-
-        menu = [
-
-            ("Painel Principal",icon("casa.png"),self.mostrar_painel),
-
-            ("Estudantes",icon("perfil.png"),self.mostrar_estudantes),
-
-            ("Bolsas",icon("bolsa.png"),self.mostrar_bolsas),
-
-            ("Candidaturas",icon("candidatura.png"),self.mostrar_candidaturas),
-
-            ("Avaliação (Prolog)",icon("avaliacao.png"),self.mostrar_avaliacao),
-
-            ("Relatórios",icon("relatorio.png"),self.mostrar_relatorios),
-
-            ("Utilizadores",icon("utilizadores.png"),self.mostrar_utilizadores),
-
-            ("Definições",icon("definicao.png"),self.mostrar_perfil)
-
-        ]
-
-        for texto,icone,comando in menu:
-
-            btn = ctk.CTkButton(
-
-                self.sidebar,
-
-                text=texto,
-
-                image=icone,
-
-                compound="left",
-
-                anchor="w",
-
-                fg_color="transparent",
-
-                hover_color="#11457B",
-
-                text_color="white",
-
-                height=45,
-
-                command=comando
-
-            )
-
-            btn.pack(
-                fill="x",
-                padx=15,
-                pady=5
-            )
-
-            self.botoes[texto]=btn
-
-        ctk.CTkFrame(
-            self.sidebar,
-            height=1,
-            fg_color="#35506E"
-        ).pack(
-            side="bottom",
-            fill="x",
-            padx=15,
-            pady=(0,10)
-        )
-
-        logout = self.carregar(
-            "assets/sair.png",
-            (20,20)
-        )
-
-        ctk.CTkButton(
-
-            self.sidebar,
-
-            text="Terminar Sessão",
-
-            image=logout,
-
-            compound="left",
-
-            anchor="w",
-
-            fg_color="transparent",
-
-            hover_color="#2A3F5F",
-
-            text_color="#FF6B6B",
-
-            height=45,
-
-            command=self.terminar_sessao
-
-        ).pack(
-
-            side="bottom",
-
-            fill="x",
-
-            padx=15,
-
-            pady=20
-
-        )
-    # ==========================================
+    # ========================================
     # MÉTODOS AUXILIARES
-    # ==========================================
+    # ========================================
 
-    def terminar_sessao(self):
-        if messagebox.askyesno(
-            "Terminar Sessão",
-            "Deseja realmente terminar a sessão?"
-        ):
-            self.destroy()
+    def obter_nome(self):
+        try:
+            conn = conectar()
+            cursor = conn.cursor()
+            cursor.execute("SELECT nome FROM utilizadores WHERE id = ?", (self.id_utilizador_logado,))
+            resultado = cursor.fetchone()
+            conn.close()
+            return resultado[0] if resultado else "Utilizador"
+        except:
+            return "Utilizador"
 
-    def limpar_area_conteudo(self):
+    def obter_email(self):
+        try:
+            conn = conectar()
+            cursor = conn.cursor()
+            cursor.execute("SELECT email FROM utilizadores WHERE id = ?", (self.id_utilizador_logado,))
+            resultado = cursor.fetchone()
+            conn.close()
+            return resultado[0] if resultado else "email@example.com"
+        except:
+            return "email@example.com"
+
+    def limpar_area(self):
         for widget in self.area_conteudo.winfo_children():
             widget.destroy()
 
-    def destacar_botao_menu(self, nome):
-        for texto, botao in self.botoes.items():
+    def destacar_menu(self, nome):
+        for texto, btn in self.botoes_menu.items():
             if texto == nome:
-                botao.configure(fg_color="#11457B")
+                btn.configure(fg_color="#11457B")
             else:
-                botao.configure(fg_color="transparent")
+                btn.configure(fg_color="transparent")
 
-    # ==========================================
-    # PÁGINAS
-    # ==========================================
+    # ========================================
+    # INTERFACE PRINCIPAL
+    # ========================================
 
-    def mostrar_painel(self):
-        self.destacar_botao_menu("Painel Principal")
-        self.label_titulo.configure(text="Painel Principal")
+    def criar_interface(self):
+        # Container principal
+        container = ctk.CTkFrame(self, fg_color="#F4F6FB")
+        container.pack(fill="both", expand=True)
 
-        self.limpar_area_conteudo()
-        self.carregar_painel()
+        # ===== SIDEBAR =====
+        sidebar = ctk.CTkFrame(container, width=250, fg_color="#0B2A4A", corner_radius=0)
+        sidebar.pack(side="left", fill="y")
+        sidebar.pack_propagate(False)
 
-    def mostrar_estudantes(self):
-
-     self.destacar_botao_menu("Estudantes")
-
-     self.label_titulo.configure(text="Estudantes")
-
-     self.limpar_area_conteudo()
-
-     Estudantes(self.area_conteudo)
-
-    def mostrar_bolsas(self):
-        self.destacar_botao_menu("Bolsas")
-        self.label_titulo.configure(text="Bolsas")
-
-        self.limpar_area_conteudo()
+        # Logo
+        ctk.CTkLabel(
+            sidebar,
+            text="🎓 SIBES",
+            font=("Segoe UI", 20, "bold"),
+            text_color="white"
+        ).pack(pady=30, padx=20, anchor="w")
 
         ctk.CTkLabel(
-            self.area_conteudo,
-            text="Página Bolsas",
-            font=("Segoe UI",30,"bold")
-        ).pack(pady=50)
+            sidebar,
+            text="Sistema de Bolsas",
+            font=("Segoe UI", 10),
+            text_color="#A0AEC0"
+        ).pack(padx=20, anchor="w")
 
-    def mostrar_candidaturas(self):
-        self.destacar_botao_menu("Candidaturas")
-        self.label_titulo.configure(text="Candidaturas")
+        # Separador
+        ctk.CTkFrame(sidebar, height=1, fg_color="#35506E").pack(fill="x", pady=20)
 
-        self.limpar_area_conteudo()
-
-        ctk.CTkLabel(
-            self.area_conteudo,
-            text="Página Candidaturas",
-            font=("Segoe UI",30,"bold")
-        ).pack(pady=50)
-
-    def mostrar_avaliacao(self):
-        self.destacar_botao_menu("Avaliação (Prolog)")
-        self.label_titulo.configure(text="Avaliação (Prolog)")
-
-        self.limpar_area_conteudo()
-
-        ctk.CTkLabel(
-            self.area_conteudo,
-            text="Página Avaliação",
-            font=("Segoe UI",30,"bold")
-        ).pack(pady=50)
-
-    def mostrar_relatorios(self):
-        self.destacar_botao_menu("Relatórios")
-        self.label_titulo.configure(text="Relatórios")
-
-        self.limpar_area_conteudo()
-
-        ctk.CTkLabel(
-            self.area_conteudo,
-            text="Página Relatórios",
-            font=("Segoe UI",30,"bold")
-        ).pack(pady=50)
-
-    def mostrar_utilizadores(self):
-        self.destacar_botao_menu("Utilizadores")
-        self.label_titulo.configure(text="Utilizadores")
-
-        self.limpar_area_conteudo()
-
-        ctk.CTkLabel(
-            self.area_conteudo,
-            text="Página Utilizadores",
-            font=("Segoe UI",30,"bold")
-        ).pack(pady=50)
-
-    def mostrar_perfil(self):
-
-        self.destacar_botao_menu("Definições")
-
-        self.label_titulo.configure(text="")
-
-        self.limpar_area_conteudo()
-
-        from interface.admin.perfilUtilizador import PerfilUtilizador
-
-        PerfilUtilizador(self.area_conteudo)
-
-    # ==========================================
-    # MAIN
-    # ==========================================
-
-    def main_ui(self):
-
-        self.main = ctk.CTkFrame(
-            self.container,
-            fg_color="#F5F7FB"
-        )
-
-        self.main.pack(
-            side="left",
-            fill="both",
-            expand=True
-        )
-
-        top = ctk.CTkFrame(
-            self.main,
-            fg_color="#F5F7FB",
-            height=80
-        )
-
-        top.pack(fill="x")
-        top.pack_propagate(False)
-
-        self.label_titulo = ctk.CTkLabel(
-            top,
-            text="Painel Principal",
-            font=("Segoe UI",24,"bold"),
-            text_color="#142850"
-        )
-
-        self.label_titulo.pack(
-            side="left",
-            padx=30,
-            pady=20
-        )
-
-        user = ctk.CTkFrame(
-            top,
-            fg_color="transparent"
-        )
-
-        user.pack(
-            side="right",
-            padx=30
-        )
-
-        avatar = self.carregar(
-            "assets/perfil.png",
-            (40,40)
-        )
-
-        seta = self.carregar(
-            "assets/seta.png",
-            (14,14)
-        )
-
-        ctk.CTkLabel(
-            user,
-            image=avatar,
-            text=""
-        ).pack(side="left")
-
-        texto = ctk.CTkFrame(
-            user,
-            fg_color="transparent"
-        )
-
-        texto.pack(side="left", padx=8)
-
-        ctk.CTkLabel(
-            texto,
-            text="Administrador",
-            font=("Segoe UI",14,"bold")
-        ).pack(anchor="w")
-
-        ctk.CTkLabel(
-            texto,
-            text="admin@sibes.cv",
-            font=("Segoe UI",11)
-        ).pack(anchor="w")
-
-        ctk.CTkLabel(
-            user,
-            image=seta,
-            text=""
-        ).pack(side="left")
-
-        ctk.CTkFrame(
-            self.main,
-            height=1,
-            fg_color="#E5E7EB"
-        ).pack(fill="x")
-
-        self.area_conteudo = ctk.CTkFrame(
-            self.main,
-            fg_color="transparent"
-        )
-
-        self.area_conteudo.pack(
-            fill="both",
-            expand=True
-        )
-
-        self.mostrar_painel()  
-    # ==========================================
-    # PAINEL PRINCIPAL
-    # ==========================================
-
-    def carregar_painel(self):
-
-        frame = ctk.CTkFrame(
-            self.area_conteudo,
-            fg_color="transparent"
-        )
-
-        frame.pack(fill="both", expand=True)
-
-        area = ctk.CTkFrame(frame, fg_color="transparent")
-        area.pack(fill="x", padx=35, pady=20)
-
-        ctk.CTkLabel(
-            area,
-            text="Bem-vindo, Administrador! 👋",
-            font=("Segoe UI", 28, "bold"),
-            text_color="#162447"
-        ).pack(anchor="w")
-
-        ctk.CTkLabel(
-            area,
-            text="Aqui está um resumo geral do sistema.",
-            text_color="#6B7280"
-        ).pack(anchor="w")
-
-        self.criar_cards(frame)
-
-        baixo = ctk.CTkFrame(
-            frame,
-            fg_color="transparent"
-        )
-
-        baixo.pack(
-            fill="both",
-            expand=True,
-            padx=35,
-            pady=(15,30)
-        )
-
-        baixo.grid_columnconfigure(0, weight=1)
-        baixo.grid_columnconfigure(1, weight=1)
-
-        # =============================
-        # BOX ESQUERDA
-        # =============================
-
-        box1 = ctk.CTkFrame(
-            baixo,
-            fg_color="white",
-            corner_radius=12,
-            border_width=1,
-            border_color="#E5E7EB"
-        )
-
-        box1.grid(
-            row=0,
-            column=0,
-            sticky="nsew",
-            padx=(0,10)
-        )
-
-        ctk.CTkLabel(
-            box1,
-            text="Candidaturas por Estado",
-            font=("Segoe UI",18,"bold")
-        ).pack(anchor="w", padx=20, pady=20)
-
-        ctk.CTkLabel(
-            box1,
-            justify="left",
-            text="● Aprovadas: 40\n\n● Pendentes: 25\n\n● Rejeitadas: 20"
-        ).pack(anchor="w", padx=30, pady=40)
-
-        # =============================
-        # BOX DIREITA
-        # =============================
-
-        box2 = ctk.CTkFrame(
-            baixo,
-            fg_color="white",
-            corner_radius=12,
-            border_width=1,
-            border_color="#E5E7EB"
-        )
-
-        box2.grid(
-            row=0,
-            column=1,
-            sticky="nsew"
-        )
-
-        ctk.CTkLabel(
-            box2,
-            text="Candidaturas Recentes",
-            font=("Segoe UI",18,"bold")
-        ).pack(anchor="w", padx=20, pady=20)
-
-        dados = [
-            ("João Silva","Bolsa Mérito","Pendente"),
-            ("Ana Santos","Bolsa Social","Aprovada"),
-            ("Carlos Lima","Bolsa Desporto","Pendente"),
-            ("Maria Costa","Bolsa Excelência","Rejeitada")
+        # Menu de Navegação
+        self.botoes_menu = {}
+        menu_items = [
+            ("📊 Painel Principal", self.mostrar_painel),
+            ("📝 Minhas Candidaturas", self.mostrar_minhas_candidaturas),
+            ("💰 Bolsas Disponíveis", self.mostrar_bolsas),
+            ("🧠 Avaliação Inteligente", self.mostrar_avaliacao),
+            ("📄 Relatórios Pessoais", self.mostrar_relatorios),
+            ("👤 Meu Perfil", self.mostrar_perfil)
         ]
 
-        for nome, bolsa, estado in dados:
-
-            linha = ctk.CTkFrame(
-                box2,
-                fg_color="transparent"
+        for texto, comando in menu_items:
+            btn = ctk.CTkButton(
+                sidebar,
+                text=texto,
+                anchor="w",
+                fg_color="transparent",
+                hover_color="#11457B",
+                text_color="white",
+                height=45,
+                command=comando
             )
+            btn.pack(fill="x", padx=15, pady=5)
+            self.botoes_menu[texto] = btn
 
-            linha.pack(fill="x", padx=20, pady=5)
+        # Separador final
+        ctk.CTkFrame(sidebar, height=1, fg_color="#35506E").pack(fill="x", pady=20, side="bottom")
 
-            ctk.CTkLabel(
-                linha,
-                text=nome,
-                width=160,
-                anchor="w"
-            ).pack(side="left")
-
-            ctk.CTkLabel(
-                linha,
-                text=bolsa,
-                width=160,
-                anchor="w"
-            ).pack(side="left")
-
-            ctk.CTkLabel(
-                linha,
-                text=estado
-            ).pack(side="right")
-    # ==========================================
-    # CARDS
-    # ==========================================
-
-    def criar_cards(self, parent):
-
-        frame = ctk.CTkFrame(
-            parent,
-            fg_color="transparent"
-        )
-
-        frame.pack(fill="x", padx=35, pady=15)
-
-        frame.grid_columnconfigure((0,1,2,3), weight=1)
-
-        self.criar_card(
-            frame,
-            0,
-            "Estudantes",
-            "Estudantes registados",
-            "120",
-            "#EEF4FF",
-            "#C7D6FF",
-            "assets/chapeu.png"
-        )
-
-        self.criar_card(
-            frame,
-            1,
-            "Bolsas",
-            "Bolsas disponíveis",
-            "15",
-            "#ECFFF0",
-            "#BFEFCC",
-            "assets/livro.png"
-        )
-
-        self.criar_card(
-            frame,
-            2,
-            "Candidaturas",
-            "Candidaturas",
-            "85",
-            "#FFF8EA",
-            "#FFE2A8",
-            "assets/formulario.png"
-        )
-
-        self.criar_card(
-            frame,
-            3,
-            "Aprovados",
-            "Este mês",
-            "40",
-            "#F6EEFF",
-            "#D9C6FF",
-            "assets/certo.png"
-        )
-
-    def criar_card(
-        self,
-        parent,
-        col,
-        titulo,
-        subtitulo,
-        valor,
-        cor,
-        circulo,
-        icone
-    ):
-
-        card = ctk.CTkFrame(
-            parent,
-            fg_color=cor,
-            corner_radius=15,
-            height=120
-        )
-
-        card.grid(
-            row=0,
-            column=col,
-            padx=10,
-            sticky="nsew"
-        )
-
-        card.grid_columnconfigure(1, weight=1)
-
-        img = self.carregar(icone,(22,22))
-
-        esquerda = ctk.CTkFrame(
-            card,
-            fg_color="transparent"
-        )
-
-        esquerda.grid(
-            row=0,
-            column=0,
-            padx=20,
-            pady=20
-        )
-
-        bola = ctk.CTkFrame(
-            esquerda,
-            width=45,
+        # Botão Terminar Sessão
+        ctk.CTkButton(
+            sidebar,
+            text="🚪 Terminar Sessão",
+            anchor="w",
+            fg_color="transparent",
+            hover_color="#2A3F5F",
+            text_color="#FF6B6B",
             height=45,
-            corner_radius=25,
-            fg_color=circulo
-        )
+            command=self.terminar_sessao
+        ).pack(side="bottom", fill="x", padx=15, pady=15)
 
-        bola.pack()
-        bola.pack_propagate(False)
+        # ===== MAIN CONTENT =====
+        main = ctk.CTkFrame(container, fg_color="#F4F6FB")
+        main.pack(side="left", fill="both", expand=True)
+
+        # Header
+        header = ctk.CTkFrame(main, fg_color="white", height=80, corner_radius=0)
+        header.pack(fill="x")
+        header.pack_propagate(False)
+
+        self.label_titulo = ctk.CTkLabel(
+            header,
+            text="Painel Principal",
+            font=("Segoe UI", 24, "bold"),
+            text_color="#142850"
+        )
+        self.label_titulo.pack(side="left", padx=30, pady=20)
+
+        # Usuário info no header
+        info_frame = ctk.CTkFrame(header, fg_color="transparent")
+        info_frame.pack(side="right", padx=30, pady=20)
 
         ctk.CTkLabel(
-            bola,
-            image=img,
-            text=""
-        ).place(relx=0.5,rely=0.5,anchor="center")
-
-        direita = ctk.CTkFrame(
-            card,
-            fg_color="transparent"
-        )
-
-        direita.grid(
-            row=0,
-            column=1,
-            sticky="e",
-            padx=20
-        )
-
-        ctk.CTkLabel(
-            direita,
-            text=valor,
-            font=("Segoe UI",26,"bold")
+            info_frame,
+            text=f"👤 {self.nome_usuario}",
+            font=("Segoe UI", 12, "bold"),
+            text_color="#142850"
         ).pack(anchor="e")
 
         ctk.CTkLabel(
-            direita,
-            text=titulo,
-            font=("Segoe UI",12,"bold")
+            info_frame,
+            text=self.email_usuario,
+            font=("Segoe UI", 10),
+            text_color="#6B7280"
         ).pack(anchor="e")
 
+        # Área de conteúdo
+        self.area_conteudo = ctk.CTkScrollableFrame(main, fg_color="#F4F6FB")
+        self.area_conteudo.pack(fill="both", expand=True, padx=30, pady=20)
+
+        # Mostrar painel principal por padrão
+        self.mostrar_painel()
+
+    # ========================================
+    # PÁGINAS
+    # ========================================
+
+    def mostrar_painel(self):
+        """Painel Principal com resumo e candidaturas recentes"""
+        self.destacar_menu("📊 Painel Principal")
+        self.label_titulo.configure(text="Painel Principal")
+        self.limpar_area()
+
+        # Boas-vindas
         ctk.CTkLabel(
-            direita,
-            text=subtitulo,
-            font=("Segoe UI",11)
-        ).pack(anchor="e")
-    # ==========================================
-    # PÁGINAS (TEMPORÁRIAS)
-    # ==========================================
-
-    def carregar_estudantes(self):
-        frame = ctk.CTkFrame(self.area_conteudo, fg_color="transparent")
-        frame.pack(fill="both", expand=True)
-
-        ctk.CTkLabel(
-            frame,
-            text="Página Estudantes",
-            font=("Segoe UI", 30, "bold")
-        ).pack(expand=True)
-
-    def carregar_bolsas(self):
-        frame = ctk.CTkFrame(self.area_conteudo, fg_color="transparent")
-        frame.pack(fill="both", expand=True)
-
-        ctk.CTkLabel(
-            frame,
-            text="Página Bolsas",
-            font=("Segoe UI", 30, "bold")
-        ).pack(expand=True)
-
-    def carregar_candidaturas(self):
-        frame = ctk.CTkFrame(self.area_conteudo, fg_color="transparent")
-        frame.pack(fill="both", expand=True)
+            self.area_conteudo,
+            text=f"Bem-vindo, {self.nome_usuario}! 👋",
+            font=("Segoe UI", 26, "bold"),
+            text_color="#142850"
+        ).pack(anchor="w", pady=(0, 5))
 
         ctk.CTkLabel(
-            frame,
-            text="Página Candidaturas",
-            font=("Segoe UI", 30, "bold")
-        ).pack(expand=True)
+            self.area_conteudo,
+            text="Acompanhe suas candidaturas e oportunidades de bolsas",
+            font=("Segoe UI", 12),
+            text_color="#6B7280"
+        ).pack(anchor="w", pady=(0, 20))
 
-    def carregar_avaliacao(self):
-        frame = ctk.CTkFrame(self.area_conteudo, fg_color="transparent")
-        frame.pack(fill="both", expand=True)
+        # Cartões de resumo
+        self.criar_cards_resumo()
 
-        ctk.CTkLabel(
-            frame,
-            text="Página Avaliação (Prolog)",
-            font=("Segoe UI", 30, "bold")
-        ).pack(expand=True)
+        # Gráfico de candidaturas
+        self.criar_grafico_candidaturas()
 
-    def carregar_relatorios(self):
-        frame = ctk.CTkFrame(self.area_conteudo, fg_color="transparent")
-        frame.pack(fill="both", expand=True)
+        # Candidaturas recentes
+        self.criar_lista_recentes()
 
-        ctk.CTkLabel(
-            frame,
-            text="Página Relatórios",
-            font=("Segoe UI", 30, "bold")
-        ).pack(expand=True)
-
-    def carregar_utilizadores(self):
-        frame = ctk.CTkFrame(self.area_conteudo, fg_color="transparent")
-        frame.pack(fill="both", expand=True)
+    def mostrar_minhas_candidaturas(self):
+        """Lista de candidaturas com tabela"""
+        self.destacar_menu("📝 Minhas Candidaturas")
+        self.label_titulo.configure(text="Minhas Candidaturas")
+        self.limpar_area()
 
         ctk.CTkLabel(
-            frame,
-            text="Página Utilizadores",
-            font=("Segoe UI", 30, "bold")
-        ).pack(expand=True)
+            self.area_conteudo,
+            text="📝 Minhas Candidaturas",
+            font=("Segoe UI", 20, "bold"),
+            text_color="#142850"
+        ).pack(anchor="w", pady=(0, 20))
 
-    # ==========================================
-    # PERFIL
-    # ==========================================
+        # Tabela de candidaturas
+        self.criar_tabela_candidaturas()
 
-    def carregar_perfil(self):
+    def mostrar_bolsas(self):
+        """Bolsas disponíveis com pesquisa e filtros"""
+        self.destacar_menu("💰 Bolsas Disponíveis")
+        self.label_titulo.configure(text="Bolsas Disponíveis")
+        self.limpar_area()
 
-        from interface.admin.perfilUtilizador import PerfilUtilizador
+        ctk.CTkLabel(
+            self.area_conteudo,
+            text="💰 Bolsas Disponíveis",
+            font=("Segoe UI", 20, "bold"),
+            text_color="#142850"
+        ).pack(anchor="w", pady=(0, 20))
 
-        PerfilUtilizador(self.area_conteudo)                    
-# ==========================================
-# EXECUTAR
-# ==========================================
+        # Pesquisa e filtros
+        search_frame = ctk.CTkFrame(self.area_conteudo, fg_color="white", corner_radius=10)
+        search_frame.pack(fill="x", pady=(0, 20))
+
+        ctk.CTkLabel(search_frame, text="Pesquisar:", font=("Segoe UI", 11, "bold")).pack(side="left", padx=15, pady=15)
+        ctk.CTkEntry(search_frame, placeholder_text="Digite nome da bolsa...").pack(side="left", padx=(0, 15), fill="x", expand=True)
+        ctk.CTkButton(search_frame, text="🔍 Pesquisar", width=100).pack(side="left", padx=15)
+
+        # Lista de bolsas (placeholder)
+        ctk.CTkLabel(
+            self.area_conteudo,
+            text="Funcionalidade em desenvolvimento...",
+            font=("Segoe UI", 12),
+            text_color="#9CA3AF"
+        ).pack(pady=30)
+
+    def mostrar_avaliacao(self):
+        """Avaliação Inteligente com Prolog"""
+        self.destacar_menu("🧠 Avaliação Inteligente")
+        self.label_titulo.configure(text="Avaliação Inteligente")
+        self.limpar_area()
+
+        ctk.CTkLabel(
+            self.area_conteudo,
+            text="🧠 Avaliação Inteligente",
+            font=("Segoe UI", 20, "bold"),
+            text_color="#142850"
+        ).pack(anchor="w", pady=(0, 20))
+
+        ctk.CTkLabel(
+            self.area_conteudo,
+            text="Selecione uma candidatura para avaliar elegibilidade",
+            font=("Segoe UI", 12),
+            text_color="#6B7280"
+        ).pack(anchor="w", pady=(0, 20))
+
+        # Funcionalidade em desenvolvimento
+        ctk.CTkLabel(
+            self.area_conteudo,
+            text="Funcionalidade em desenvolvimento...",
+            font=("Segoe UI", 12),
+            text_color="#9CA3AF"
+        ).pack(pady=30)
+
+    def mostrar_relatorios(self):
+        """Relatórios Pessoais com gráficos"""
+        self.destacar_menu("📄 Relatórios Pessoais")
+        self.label_titulo.configure(text="Relatórios Pessoais")
+        self.limpar_area()
+
+        ctk.CTkLabel(
+            self.area_conteudo,
+            text="📄 Relatórios Pessoais",
+            font=("Segoe UI", 20, "bold"),
+            text_color="#142850"
+        ).pack(anchor="w", pady=(0, 20))
+
+        # Funcionalidade em desenvolvimento
+        ctk.CTkLabel(
+            self.area_conteudo,
+            text="Funcionalidade em desenvolvimento...",
+            font=("Segoe UI", 12),
+            text_color="#9CA3AF"
+        ).pack(pady=30)
+
+    def mostrar_perfil(self):
+        """Perfil do Estudante"""
+        self.destacar_menu("👤 Meu Perfil")
+        self.label_titulo.configure(text="")
+        self.limpar_area()
+
+        PerfilUtilizador(self.area_conteudo, self.id_utilizador_logado)
+
+    def terminar_sessao(self):
+        if messagebox.askyesno("Terminar Sessão", "Deseja realmente terminar a sessão?"):
+            self.destroy()
+
+    # ========================================
+    # COMPONENTES DO PAINEL PRINCIPAL
+    # ========================================
+
+    def criar_cards_resumo(self):
+        """Cria cartões de resumo"""
+        cards_frame = ctk.CTkFrame(self.area_conteudo, fg_color="transparent")
+        cards_frame.pack(fill="x", pady=(0, 30))
+
+        cards_data = [
+            ("Candidaturas", "5", "#EEF4FF", "#1E40AF"),
+            ("Pendentes", "2", "#FFF8EA", "#92400E"),
+            ("Aprovadas", "2", "#ECFFF0", "#03543F"),
+            ("Valor Total", "120.000 CVE", "#F6EEFF", "#6B21A8")
+        ]
+
+        for titulo, valor, cor_fundo, cor_texto in cards_data:
+            card = ctk.CTkFrame(cards_frame, fg_color=cor_fundo, corner_radius=10, height=100)
+            card.pack(side="left", fill="both", expand=True, padx=(0, 15))
+            card.pack_propagate(False)
+
+            ctk.CTkLabel(card, text=valor, font=("Segoe UI", 20, "bold"), text_color=cor_texto).pack(pady=(10, 0))
+            ctk.CTkLabel(card, text=titulo, font=("Segoe UI", 11), text_color=cor_texto).pack(pady=(5, 10))
+
+    def criar_grafico_candidaturas(self):
+        """Cria gráfico de candidaturas"""
+        fig = Figure(figsize=(6, 3), dpi=80, facecolor='white')
+        ax = fig.add_subplot(111)
+
+        # Dados de exemplo
+        estados = ['Aprovadas', 'Pendentes', 'Rejeitadas']
+        valores = [2, 2, 1]
+        cores = ['#10B981', '#F59E0B', '#EF4444']
+
+        ax.pie(valores, labels=estados, autopct='%1.0f%%', colors=cores, startangle=90)
+        ax.set_title("Estado das Candidaturas")
+
+        canvas = FigureCanvasTkAgg(fig, master=self.area_conteudo)
+        canvas.get_tk_widget().pack(fill="x", pady=(0, 30))
+
+    def criar_lista_recentes(self):
+        """Cria lista de candidaturas recentes"""
+        ctk.CTkLabel(
+            self.area_conteudo,
+            text="Candidaturas Recentes",
+            font=("Segoe UI", 14, "bold"),
+            text_color="#142850"
+        ).pack(anchor="w", pady=(0, 15))
+
+        # Tabela de candidaturas recentes
+        columns = ("Código", "Bolsa", "Data", "Estado", "Valor")
+        tree = ttk.Treeview(self.area_conteudo, columns=columns, height=5, show="headings")
+
+        for col in columns:
+            tree.heading(col, text=col)
+            tree.column(col, width=100)
+
+        # Dados de exemplo
+        tree.insert('', 'end', values=('C001', 'Bolsa Social', '20/06/2026', 'Pendente', '40.000 CVE'))
+        tree.insert('', 'end', values=('C002', 'Bolsa Mérito', '15/06/2026', 'Aprovada', '60.000 CVE'))
+
+        tree.pack(fill="x")
+
+    def criar_tabela_candidaturas(self):
+        """Cria tabela detalhada de candidaturas"""
+        columns = ("Código", "Bolsa", "Data", "Estado", "Valor", "Ações")
+        tree = ttk.Treeview(self.area_conteudo, columns=columns, height=10, show="headings")
+
+        for col in columns:
+            tree.heading(col, text=col)
+            tree.column(col, width=120)
+
+        # Dados de exemplo
+        tree.insert('', 'end', values=('C001', 'Bolsa Social', '20/06/2026', 'Pendente', '40.000 CVE', '👁️ Ver'))
+        tree.insert('', 'end', values=('C002', 'Bolsa Mérito', '15/06/2026', 'Aprovada', '60.000 CVE', '👁️ Ver'))
+
+        tree.pack(fill="both", expand=True)
+
+
+# Alias para compatibilidade com login.py
+class App(DashboardEstudante):
+    def __init__(self, parent=None, id_utilizador_logado=None):
+        super().__init__(parent, id_utilizador_logado)
+
 
 if __name__ == "__main__":
-
-    ctk.set_appearance_mode("light")
-    ctk.set_default_color_theme("blue")
-
-    app = App()
+    app = DashboardEstudante()
     app.mainloop()
