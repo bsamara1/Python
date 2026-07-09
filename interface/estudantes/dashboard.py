@@ -237,7 +237,7 @@ class App(ctk.CTkToplevel):
 
 
 if __name__ == "__main__":
-   
+    criar_base()
 
     ctk.set_appearance_mode("light")
     ctk.set_default_color_theme("blue")
