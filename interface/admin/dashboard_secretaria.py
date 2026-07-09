@@ -13,10 +13,10 @@ ws_bolsas = wb.create_sheet(title="Gestão de Bolsas")
 ws_candidaturas = wb.create_sheet(title="Candidaturas")
 
 # 2. Definição da Paleta de Cores (Profissional e Executiva)
-PRIMARY_DARK = "1A365D"   # Azul escuro corporativo
-ACCENT_BLUE = "2B6CB0"    # Azul intermédio para sub-cabeçalhos
-ACCENT_GREEN = "2F855A"   # Verde para sucesso/elegível
-BORDER_GRAY = "E2E8F0"    # Cinza claro para linhas de grelha
+PRIMARY_DARK = "1A365D"   
+ACCENT_BLUE = "2B6CB0"    
+ACCENT_GREEN = "2F855A"   
+BORDER_GRAY = "E2E8F0"    
 
 font_title = Font(name="Arial", size=16, bold=True, color="FFFFFF")
 font_section = Font(name="Arial", size=13, bold=True, color=PRIMARY_DARK)
