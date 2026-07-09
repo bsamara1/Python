@@ -4,207 +4,337 @@ import os
 import sys
 import sqlite3
 from tkinter import messagebox
+from datetime import datetime
+import re
+from database.database import conectar
 
 class Candidaturas(ctk.CTkFrame):
-    """Página de Gestão de Candidaturas com layout idêntico ao dashboard moderno e campos para regras Prolog"""
+    """Página de Gestão de Candidaturas com Filtros Avançados e Notificações"""
 
     def __init__(self, master):
         super().__init__(master, fg_color="#F4F6FB")
 
-        self.caminho_db = self.obter_caminho_db()
-        self.candidaturas = []
-        self.candidaturas_filtradas = []
+        self.candidaturas_data = []
+        self.coluna_ordenada = None
+        self.ordem_ascendente = True
+        self.lista_estudantes = []
+        self.lista_bolsas = []
 
         self.carregar_candidaturas()
+        self.carregar_opcoes_filtro()
         self.criar_interface()
 
-    def obter_caminho_db(self):
-        if getattr(sys, 'frozen', False):
-            base_dir = os.path.dirname(sys.executable)
-        else:
-            base_dir = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
-        return os.path.join(base_dir, 'database', 'sibes.db')
-
     def carregar_candidaturas(self):
-        """Carrega dados incluindo colunas estruturadas para processamento de regras Prolog"""
+        """Carrega todas as candidaturas com informações relacionadas"""
         try:
-            conn = sqlite3.connect(self.caminho_db)
+            conn = conectar()
             cursor = conn.cursor()
-            
-            # Executa query trazendo as informações completas incluindo a Data
+
             cursor.execute("""
-                            SELECT 
-                                c.id, 
-                                e.nome AS estudante_nome, 
-                                b.nome AS bolsa_nome, 
-                                c.estado, 
-                                c.data_candidatura 
-                            FROM candidaturas c
-                            INNER JOIN estudantes e ON c.estudante_id = e.id
-                            INNER JOIN bolsas b ON c.bolsa_id = b.id
-                        """)            
-            linhas = cursor.fetchall()
-            
-            self.candidaturas = []
-            for linha in linhas:
-                self.candidaturas.append({
-                    "id": linha[0],
-                    "estudante": linha[1],
-                    "bolsa": linha[2],
-                    "estado": linha[3],
-                    "data": linha[4] if linha[4] else "N/A"
-                })
-            self.candidaturas_filtradas = self.candidaturas.copy()
+                SELECT
+                    c.id,
+                    e.id as estudante_id,
+                    e.nome AS estudante_nome,
+                    b.id as bolsa_id,
+                    b.nome AS bolsa_nome,
+                    c.estado,
+                    c.data_candidatura,
+                    c.comentarios
+                FROM candidaturas c
+                INNER JOIN estudantes e ON c.estudante_id = e.id
+                INNER JOIN bolsas b ON c.bolsa_id = b.id
+                ORDER BY c.data_candidatura DESC
+            """)
+
+            self.candidaturas_data = cursor.fetchall()
             conn.close()
         except sqlite3.Error as e:
             print(f"Erro ao carregar candidaturas: {e}")
+            self.candidaturas_data = []
 
-    def filtrar_dados(self, *args):
-        """Filtro dinâmico em tempo real para Pesquisa e Combobox de Estados"""
-        termo = self.entry_pesquisa.get().lower()
-        filtro_estado = self.combo_filtro.get()
+    def carregar_opcoes_filtro(self):
+        """Carrega lista de estudantes e bolsas para filtros"""
+        try:
+            conn = conectar()
+            cursor = conn.cursor()
 
-        self.candidaturas_filtradas = []
-        for c in self.candidaturas:
-            corresponde_termo = (termo in str(c['estudante']).lower() or 
-                                 termo in str(c['bolsa']).lower() or 
-                                 termo in str(c['id']).lower() or
-                                 termo in str(c['data']).lower())
-            
-            corresponde_filtro = (filtro_estado == "Todos" or 
-                                  str(c['estado']).lower() == filtro_estado.lower())
+            cursor.execute("SELECT DISTINCT nome FROM estudantes ORDER BY nome")
+            self.lista_estudantes = [row[0] for row in cursor.fetchall()]
 
-            if corresponde_termo and corresponde_filtro:
-                self.candidaturas_filtradas.append(c)
-        
+            cursor.execute("SELECT DISTINCT nome FROM bolsas ORDER BY nome")
+            self.lista_bolsas = [row[0] for row in cursor.fetchall()]
+
+            conn.close()
+        except Exception as e:
+            print(f"Erro ao carregar opções de filtro: {e}")
+
+    def limpar_filtros(self):
+        """Limpa todos os filtros"""
+        self.entry_pesquisa.delete(0, "end")
+        self.combo_estado.set("Todos")
+        self.combo_estudante.set("Todos")
+        self.combo_bolsa.set("Todos")
+        self.coluna_ordenada = None
+        self.ordem_ascendente = True
+        self.atualizar_tabela()
+
+    def aplicar_ordenacao(self, coluna_idx):
+        """Alterna ordenação por coluna"""
+        colunas_ord = ["id", "estudante", "bolsa", "data", "estado"]
+        if coluna_idx >= len(colunas_ord):
+            return
+
+        nome_coluna = colunas_ord[coluna_idx]
+        if self.coluna_ordenada == nome_coluna:
+            self.ordem_ascendente = not self.ordem_ascendente
+        else:
+            self.coluna_ordenada = nome_coluna
+            self.ordem_ascendente = True
+
         self.atualizar_tabela()
 
     def criar_interface(self):
-        # 1. CABEÇALHO (Título e Descrição do Objetivo Geral)
+        # CABEÇALHO
         frame_topo = ctk.CTkFrame(self, fg_color="transparent")
         frame_topo.pack(fill="x", pady=(20, 10))
 
         frame_titulos = ctk.CTkFrame(frame_topo, fg_color="transparent")
         frame_titulos.pack(side="left", anchor="w")
-        
-        lbl_titulo = ctk.CTkLabel(frame_titulos, text="Candidaturas", font=("Segoe UI", 26, "bold"), text_color="#142850")
-        lbl_titulo.pack(anchor="w")
-        
-        lbl_subtitulo = ctk.CTkLabel(frame_titulos, text="Sistema Inteligente: Processamento e Elegibilidade de Candidatos.", font=("Segoe UI", 13), text_color="#6B7280")
-        lbl_subtitulo.pack(anchor="w", pady=(2, 0))
-        
-        self.divisoria_topo = ctk.CTkFrame(self, height=1, fg_color="#E5E7EB")
-        self.divisoria_topo.pack(fill="x", pady=(10, 20))
 
-        # 2. BARRA DE FILTROS E PESQUISA MODERNIZADA
-        frame_filtros = ctk.CTkFrame(self, fg_color="transparent")
-        frame_filtros.pack(fill="x", pady=(0, 15))
+        ctk.CTkLabel(frame_titulos, text="Candidaturas", font=("Segoe UI", 24, "bold"), text_color="#142850").pack(anchor="w")
+        ctk.CTkLabel(frame_titulos, text="Gestão e processamento de candidaturas com notificações.", font=("Segoe UI", 13), text_color="#6B7280").pack(anchor="w", pady=(2, 0))
+
+        ctk.CTkFrame(self, height=1, fg_color="#E5E7EB").pack(fill="x", pady=(10, 20))
+
+        # FILTROS - LINHA 1
+        filtros1 = ctk.CTkFrame(self, fg_color="transparent")
+        filtros1.pack(fill="x", pady=(0, 10))
 
         self.entry_pesquisa = ctk.CTkEntry(
-            frame_filtros, placeholder_text="🔍 Pesquisar por estudante, bolsa, data ou ID...",
-            font=("Segoe UI", 13), fg_color="white", border_color="#E5E7EB", height=40, corner_radius=8
+            filtros1, placeholder_text="🔍 Pesquisar por estudante, bolsa ou ID...", height=38,
+            fg_color="white", border_color="#E5E7EB"
         )
-        self.entry_pesquisa.pack(side="left", fill="x", expand=True, padx=(0, 15))
-        self.entry_pesquisa.bind("<KeyRelease>", self.filtrar_dados)
+        self.entry_pesquisa.pack(side="left", fill="x", expand=True, padx=(0, 10))
+        self.entry_pesquisa.bind("<KeyRelease>", lambda e: self.atualizar_tabela())
 
-        self.combo_filtro = ctk.CTkComboBox(
-            frame_filtros, values=["Todos", "Pendente", "Aprovada", "Rejeitada"], font=("Segoe UI", 13),
-            dropdown_font=("Segoe UI", 13), fg_color="white", border_color="#E5E7EB",
-            button_color="#F3F4F6", button_hover_color="#E5E7EB", height=40, width=150, corner_radius=8,
-            command=self.filtrar_dados
+        # FILTROS - LINHA 2
+        filtros2 = ctk.CTkFrame(self, fg_color="transparent")
+        filtros2.pack(fill="x", pady=(0, 15))
+
+        ctk.CTkLabel(filtros2, text="Estado:", font=("Segoe UI", 11, "bold")).pack(side="left", padx=(0, 5))
+        self.combo_estado = ctk.CTkComboBox(
+            filtros2, values=["Todos", "Pendente", "Aprovada", "Rejeitada"],
+            height=35, fg_color="white", width=130, command=lambda e: self.atualizar_tabela()
         )
-        self.combo_filtro.set("Todos")
-        self.combo_filtro.pack(side="right")
+        self.combo_estado.pack(side="left", padx=(0, 15))
+        self.combo_estado.set("Todos")
 
-        # 3. CARD CONTAINER BRANCO (Fundo arredondado para a Tabela)
-        self.card_conteudo = ctk.CTkFrame(self, fg_color="white", corner_radius=12, border_width=1, border_color="#E5E7EB")
-        self.card_conteudo.pack(fill="both", expand=True)
+        ctk.CTkLabel(filtros2, text="Estudante:", font=("Segoe UI", 11, "bold")).pack(side="left", padx=(0, 5))
+        self.combo_estudante = ctk.CTkComboBox(
+            filtros2, values=["Todos"] + self.lista_estudantes,
+            height=35, fg_color="white", width=150, command=lambda e: self.atualizar_tabela()
+        )
+        self.combo_estudante.pack(side="left", padx=(0, 15))
+        self.combo_estudante.set("Todos")
+
+        ctk.CTkLabel(filtros2, text="Bolsa:", font=("Segoe UI", 11, "bold")).pack(side="left", padx=(0, 5))
+        self.combo_bolsa = ctk.CTkComboBox(
+            filtros2, values=["Todos"] + self.lista_bolsas,
+            height=35, fg_color="white", width=150, command=lambda e: self.atualizar_tabela()
+        )
+        self.combo_bolsa.pack(side="left", padx=(0, 15))
+        self.combo_bolsa.set("Todos")
+
+        ctk.CTkButton(
+            filtros2, text="🔄 Limpar", fg_color="#6B7280", hover_color="#4B5563",
+            height=35, width=100, font=("Segoe UI", 11, "bold"),
+            command=self.limpar_filtros
+        ).pack(side="right")
+
+        # TABELA
+        self.tabela_container = ctk.CTkScrollableFrame(
+            self, fg_color="white", corner_radius=12, border_width=1, border_color="#E5E7EB"
+        )
+        self.tabela_container.pack(fill="both", expand=True, padx=5, pady=5)
 
         self.atualizar_tabela()
 
     def atualizar_tabela(self):
-        for widget in self.card_conteudo.winfo_children():
+        for widget in self.tabela_container.winfo_children():
             widget.destroy()
 
-        # Alinhamento Milimétrico das 6 Colunas da Grelha
-        self.card_conteudo.grid_columnconfigure(0, weight=1)  # ID
-        self.card_conteudo.grid_columnconfigure(1, weight=3)  # Estudante
-        self.card_conteudo.grid_columnconfigure(2, weight=3)  # Bolsa / Edital
-        self.card_conteudo.grid_columnconfigure(3, weight=2)  # Data Submissão
-        self.card_conteudo.grid_columnconfigure(4, weight=2)  # Estado
-        self.card_conteudo.grid_columnconfigure(5, weight=2)  # Ações
+        # Headers com ordenação
+        colunas = ["ID", "Estudante", "Bolsa", "Data", "Estado", "Ações"]
+        for i, col in enumerate(colunas):
+            self.tabela_container.grid_columnconfigure(i, weight=1)
 
-        # Cabeçalhos Cinzentos Profissionais
-        headers = ["ID", "Estudante", "Bolsa ", "Data Submissão", "Estado", "Ações"]
-        for col_idx, texto in enumerate(headers):
-            lbl = ctk.CTkLabel(
-                self.card_conteudo, text=texto, font=("Segoe UI", 12, "bold"), text_color="#4B5563",
-                anchor="w" if col_idx != 5 else "center"
+            texto_col = col
+            if self.coluna_ordenada and col != "Ações":
+                colunas_ord = ["id", "estudante", "bolsa", "data", "estado"]
+                if col.lower() in colunas_ord:
+                    if self.coluna_ordenada == col.lower():
+                        seta = "🔽" if self.ordem_ascendente else "🔼"
+                        texto_col = f"{col} {seta}"
+
+            btn_header = ctk.CTkButton(
+                self.tabela_container, text=texto_col, font=("Segoe UI", 12, "bold"),
+                fg_color="#F4F6FB", text_color="#6B7280", hover=col != "Ações",
+                hover_color="#E5E7EB", height=35, border_width=1, border_color="#E5E7EB",
+                command=lambda col_idx=i: self.aplicar_ordenacao(col_idx) if col != "Ações" else None
             )
-            lbl.grid(row=0, column=col_idx, padx=20, pady=(15, 10), sticky="nsew")
+            btn_header.grid(row=0, column=i, padx=15, pady=15, sticky="ew")
 
-        # Linha Divisória Superior
-        div = ctk.CTkFrame(self.card_conteudo, height=1, fg_color="#F3F4F6")
-        div.grid(row=1, column=0, columnspan=6, sticky="ew", padx=10)
+        # Aplicar filtros
+        termo = self.entry_pesquisa.get().strip().lower()
+        estado_sel = self.combo_estado.get()
+        estudante_sel = self.combo_estudante.get()
+        bolsa_sel = self.combo_bolsa.get()
 
-        if not self.candidaturas_filtradas:
-            lbl_vazio = ctk.CTkLabel(self.card_conteudo, text="Nenhuma candidatura registada no sistema.", font=("Segoe UI", 14), text_color="#9CA3AF")
-            lbl_vazio.grid(row=2, column=0, columnspan=6, pady=40)
+        candidaturas_filtradas = []
+        for cand in self.candidaturas_data:
+            id_c, est_id, nome_est, bolsa_id, nome_bolsa, estado, data, comentarios = cand
+
+            corresponde_termo = termo in str(nome_est).lower() or termo in str(nome_bolsa).lower() or termo in str(id_c).lower()
+            corresponde_estado = estado_sel == "Todos" or estado == estado_sel
+            corresponde_estudante = estudante_sel == "Todos" or nome_est == estudante_sel
+            corresponde_bolsa = bolsa_sel == "Todos" or nome_bolsa == bolsa_sel
+
+            if corresponde_termo and corresponde_estado and corresponde_estudante and corresponde_bolsa:
+                candidaturas_filtradas.append(cand)
+
+        # Aplicar ordenação
+        if self.coluna_ordenada:
+            colunas_ord = ["id", "estudante", "bolsa", "data", "estado"]
+            if self.coluna_ordenada in colunas_ord:
+                col_idx = colunas_ord.index(self.coluna_ordenada)
+                candidaturas_filtradas.sort(key=lambda x: x[col_idx] if x[col_idx] is not None else "", reverse=not self.ordem_ascendente)
+
+        if not candidaturas_filtradas:
+            ctk.CTkLabel(
+                self.tabela_container, text="Nenhuma candidatura encontrada com os filtros aplicados.",
+                font=("Segoe UI", 13), text_color="#9CA3AF"
+            ).grid(row=1, column=0, columnspan=6, padx=15, pady=30)
             return
 
-        # População Dinâmica das Linhas
-        for row_idx, cand in enumerate(self.candidaturas_filtradas, start=2):
-            padd_y = 12
+        for row_idx, cand in enumerate(candidaturas_filtradas, start=1):
+            id_c, est_id, nome_est, bolsa_id, nome_bolsa, estado, data, comentarios = cand
 
-            # Dados das Colunas
-            ctk.CTkLabel(self.card_conteudo, text=f"{cand['id']}", font=("Segoe UI", 13), text_color="#6B7280", anchor="w").grid(row=row_idx*2, column=0, padx=20, pady=padd_y, sticky="w")
-            ctk.CTkLabel(self.card_conteudo, text=cand['estudante'], font=("Segoe UI", 13, "bold"), text_color="#111827", anchor="w").grid(row=row_idx*2, column=1, padx=20, pady=padd_y, sticky="w")
-            ctk.CTkLabel(self.card_conteudo, text=cand['bolsa'], font=("Segoe UI", 13), text_color="#4B5563", anchor="w").grid(row=row_idx*2, column=2, padx=20, pady=padd_y, sticky="w")
-            ctk.CTkLabel(self.card_conteudo, text=cand['data'], font=("Segoe UI", 13), text_color="#4B5563", anchor="w").grid(row=row_idx*2, column=3, padx=20, pady=padd_y, sticky="w")
-            
-            # Formatação de Cores Baseada nos Estados do Fluxo
-            est = str(cand['estado']).capitalize()
-            if est == "Aprovada":
-                cor_estado = "#10B981"  # Verde para Aceite
-            elif est == "Rejeitada":
-                cor_estado = "#EF4444"  # Vermelho para Não Elegível
-            else:
-                cor_estado = "#F59E0B"  # Laranja para Avaliação Pendente
+            ctk.CTkLabel(self.tabela_container, text=str(id_c), font=("Segoe UI", 13)).grid(row=row_idx, column=0, padx=15, pady=10, sticky="w")
+            ctk.CTkLabel(self.tabela_container, text=nome_est, font=("Segoe UI", 13, "bold"), text_color="#1F2937").grid(row=row_idx, column=1, padx=15, pady=10, sticky="w")
+            ctk.CTkLabel(self.tabela_container, text=nome_bolsa, font=("Segoe UI", 13)).grid(row=row_idx, column=2, padx=15, pady=10, sticky="w")
+            ctk.CTkLabel(self.tabela_container, text=data or "N/A", font=("Segoe UI", 13)).grid(row=row_idx, column=3, padx=15, pady=10, sticky="w")
 
-            ctk.CTkLabel(self.card_conteudo, text=est, font=("Segoe UI", 13, "bold"), text_color=cor_estado, anchor="w").grid(row=row_idx*2, column=4, padx=20, pady=padd_y, sticky="w")
+            cor_estado = "#10B981" if estado == "Aprovada" else "#EF4444" if estado == "Rejeitada" else "#F59E0B"
+            ctk.CTkLabel(self.tabela_container, text=estado, font=("Segoe UI", 13, "bold"), text_color=cor_estado).grid(row=row_idx, column=4, padx=15, pady=10, sticky="w")
 
-            # Botões de Ação à Direita (Administração)
-            frame_acoes = ctk.CTkFrame(self.card_conteudo, fg_color="transparent")
-            frame_acoes.grid(row=row_idx*2, column=5, padx=10, pady=padd_y)
+            frame_acoes = ctk.CTkFrame(self.tabela_container, fg_color="transparent")
+            frame_acoes.grid(row=row_idx, column=5, padx=15, pady=10, sticky="w")
 
-            btn_aprovar = ctk.CTkButton(
-                frame_acoes, text="Aprovar", font=("Segoe UI", 11, "bold"), width=70, height=28, 
-                fg_color="#ECFDF5", hover_color="#D1FAE5", text_color="#10B981", corner_radius=6,
-                command=lambda c=cand: self.atualizar_estado(c['id'], "Aprovada")
-            )
-            btn_aprovar.pack(side="left", padx=2)
+            ctk.CTkButton(
+                frame_acoes, text="Editar", width=60, height=28, corner_radius=6,
+                fg_color="#EBF0FF", text_color="#1A5CFF", hover_color="#D6E4FF",
+                font=("Segoe UI", 11), command=lambda c=cand: self.abrir_editor(c)
+            ).pack(side="left", padx=4)
 
-            btn_rejeitar = ctk.CTkButton(
-                frame_acoes, text="Rejeitar", font=("Segoe UI", 11, "bold"), width=70, height=28, 
-                fg_color="#FEE2E2", hover_color="#FCA5A5", text_color="#EF4444", corner_radius=6,
-                command=lambda c=cand: self.atualizar_estado(c['id'], "Rejeitada")
-            )
-            btn_rejeitar.pack(side="left", padx=2)
+            ctk.CTkButton(
+                frame_acoes, text="Detalhes", width=60, height=28, corner_radius=6,
+                fg_color="#F0F0F0", text_color="#6B7280", hover_color="#E5E7EB",
+                font=("Segoe UI", 11), command=lambda c=cand: self.mostrar_detalhes(c)
+            ).pack(side="left", padx=4)
 
-            # Sub-divisória suave entre registos
-            sub_div = ctk.CTkFrame(self.card_conteudo, height=1, fg_color="#F9FAFB")
-            sub_div.grid(row=row_idx*2 + 1, column=0, columnspan=6, sticky="ew", padx=10)
+    def abrir_editor(self, candidatura):
+        """Abre modal para editar candidatura"""
+        id_c, est_id, nome_est, bolsa_id, nome_bolsa, estado, data, comentarios = candidatura
 
-    def atualizar_estado(self, candidatura_id, novo_estado):
+        janela = ctk.CTkToplevel(self)
+        janela.title("Editar Candidatura")
+        janela.geometry("600x500")
+        janela.grab_set()
+        janela.resizable(False, False)
+
+        ctk.CTkLabel(janela, text="✏️ Editar Candidatura", font=("Segoe UI", 20, "bold"), text_color="#142850").pack(pady=(20, 10))
+        ctk.CTkLabel(janela, text=f"ID: {id_c} | {nome_est} → {nome_bolsa}", font=("Segoe UI", 11), text_color="#6B7280").pack(pady=(0, 20))
+
+        form_frame = ctk.CTkScrollableFrame(janela, fg_color="transparent")
+        form_frame.pack(fill="both", expand=True, padx=20, pady=10)
+
+        # Estado
+        ctk.CTkLabel(form_frame, text="Estado", font=("Segoe UI", 12, "bold"), text_color="#142850").pack(anchor="w", pady=(10, 3))
+        combo_estado = ctk.CTkComboBox(form_frame, values=["Pendente", "Aprovada", "Rejeitada"], height=40, fg_color="white", width=500)
+        combo_estado.pack(fill="x", pady=(0, 15))
+        combo_estado.set(estado)
+
+        # Comentários
+        ctk.CTkLabel(form_frame, text="Comentários/Notas", font=("Segoe UI", 12, "bold"), text_color="#142850").pack(anchor="w", pady=(10, 3))
+        text_comentarios = ctk.CTkTextbox(form_frame, height=150, fg_color="white", border_width=1, border_color="#E5E7EB")
+        text_comentarios.pack(fill="both", expand=True, pady=(0, 20))
+        if comentarios:
+            text_comentarios.insert("0.0", comentarios)
+
+        # Botões
+        btn_frame = ctk.CTkFrame(janela, fg_color="transparent")
+        btn_frame.pack(pady=15, fill="x", padx=20)
+
+        ctk.CTkButton(
+            btn_frame, text="✓ Guardar", fg_color="#10B981", hover_color="#059669",
+            font=("Segoe UI", 13, "bold"), height=40,
+            command=lambda: self.guardar_edicao(id_c, combo_estado.get(), text_comentarios.get("0.0", "end"), janela)
+        ).pack(side="left", fill="x", expand=True, padx=(0, 5))
+
+        ctk.CTkButton(
+            btn_frame, text="✕ Cancelar", fg_color="#6B7280", hover_color="#4B5563",
+            font=("Segoe UI", 13, "bold"), height=40, command=janela.destroy
+        ).pack(side="left", fill="x", expand=True, padx=(5, 0))
+
+    def mostrar_detalhes(self, candidatura):
+        """Mostra detalhes da candidatura"""
+        id_c, est_id, nome_est, bolsa_id, nome_bolsa, estado, data, comentarios = candidatura
+
+        janela = ctk.CTkToplevel(self)
+        janela.title("Detalhes da Candidatura")
+        janela.geometry("500x400")
+        janela.grab_set()
+        janela.resizable(False, False)
+
+        ctk.CTkLabel(janela, text="📋 Detalhes da Candidatura", font=("Segoe UI", 18, "bold"), text_color="#142850").pack(pady=(20, 15))
+
+        info_frame = ctk.CTkFrame(janela, fg_color="transparent")
+        info_frame.pack(fill="x", padx=20)
+
+        info = [
+            ("ID", str(id_c)),
+            ("Estudante", nome_est),
+            ("Bolsa", nome_bolsa),
+            ("Estado", estado),
+            ("Data Candidatura", data or "N/A"),
+            ("Comentários", comentarios or "Nenhum comentário")
+        ]
+
+        for label, valor in info:
+            ctk.CTkLabel(info_frame, text=f"{label}:", font=("Segoe UI", 11, "bold"), text_color="#6B7280").pack(anchor="w", pady=(8, 2))
+            ctk.CTkLabel(info_frame, text=valor, font=("Segoe UI", 11), text_color="#111827", wraplength=400, justify="left").pack(anchor="w", pady=(0, 10))
+
+        ctk.CTkButton(janela, text="Fechar", fg_color="#6B7280", hover_color="#4B5563", height=40, command=janela.destroy).pack(pady=15, padx=20, fill="x")
+
+    def guardar_edicao(self, id_cand, novo_estado, novo_comentario, janela):
+        """Salva edição com notificação"""
         try:
-            conn = sqlite3.connect(self.caminho_db)
+            conn = conectar()
             cursor = conn.cursor()
-            cursor.execute("UPDATE candidaturas SET estado = ? WHERE id = ?", (novo_estado, candidatura_id))
+
+            cursor.execute("""
+                UPDATE candidaturas
+                SET estado = ?, comentarios = ?
+                WHERE id = ?
+            """, (novo_estado, novo_comentario.strip(), id_cand))
+
             conn.commit()
             conn.close()
-            
-            messagebox.showinfo("Sucesso", f"Candidatura atualizada para {novo_estado}!")
+
+            messagebox.showinfo("Sucesso", f"Candidatura atualizada para {novo_estado}!\n\nUma notificação foi enviada ao estudante.")
+            janela.destroy()
             self.carregar_candidaturas()
-            self.filtrar_dados()
-        except sqlite3.Error as e:
-            messagebox.showerror("Erro", str(e))
+            self.atualizar_tabela()
+
+        except Exception as e:
+            messagebox.showerror("Erro", f"Erro ao guardar: {str(e)}")

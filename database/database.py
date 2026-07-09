@@ -75,10 +75,13 @@ def criar_base():
         nome TEXT NOT NULL,
         tipo TEXT,
         valor REAL,
-        estado TEXT
+        estado TEXT,
+        media_minima REAL DEFAULT 0.0,
+        rendimento_maximo REAL DEFAULT 999999.0
     )
     """)
 
+    # Migrations para compatibilidade com bases antigas
     try:
         cursor.execute("ALTER TABLE bolsas ADD COLUMN tipo TEXT;")
     except sqlite3.OperationalError:
@@ -86,6 +89,16 @@ def criar_base():
 
     try:
         cursor.execute("ALTER TABLE bolsas ADD COLUMN estado TEXT;")
+    except sqlite3.OperationalError:
+        pass
+
+    try:
+        cursor.execute("ALTER TABLE bolsas ADD COLUMN media_minima REAL DEFAULT 0.0;")
+    except sqlite3.OperationalError:
+        pass
+
+    try:
+        cursor.execute("ALTER TABLE bolsas ADD COLUMN rendimento_maximo REAL DEFAULT 999999.0;")
     except sqlite3.OperationalError:
         pass
 
@@ -149,7 +162,25 @@ def criar_base():
     INSERT OR IGNORE INTO utilizadores (nome, email, senha, perfil, data_criacao)
     VALUES ('Estudante Exemplo', 'estudante@sibes.com', '1234', 'Estudante', DATE('now'))
     """)
-    
+
+    # ==================================================
+    # BOLSAS DE EXEMPLO (Com novos campos)
+    # ==================================================
+    cursor.execute("""
+    INSERT OR IGNORE INTO bolsas (nome, tipo, valor, estado, media_minima, rendimento_maximo)
+    VALUES ('Bolsa de Mérito', 'Mérito', 5000, 'Ativo', 15.0, 999999)
+    """)
+
+    cursor.execute("""
+    INSERT OR IGNORE INTO bolsas (nome, tipo, valor, estado, media_minima, rendimento_maximo)
+    VALUES ('Bolsa Social', 'Social', 3000, 'Ativo', 10.0, 35000)
+    """)
+
+    cursor.execute("""
+    INSERT OR IGNORE INTO bolsas (nome, tipo, valor, estado, media_minima, rendimento_maximo)
+    VALUES ('Bolsa de Estudo Integral', 'Integral', 8000, 'Ativo', 16.0, 45000)
+    """)
+
     conn.commit()
     conn.close()
 
@@ -183,15 +214,15 @@ def registar_novo_estudante(nome, email, senha, telefone="", universidade="", cu
     finally:
         conn.close()
         
-def registar_nova_bolsa(nome, tipo, valor, estado):
+def registar_nova_bolsa(nome, tipo, valor, estado, media_minima=0.0, rendimento_maximo=999999.0):
     """Insere uma nova bolsa diretamente na base de dados"""
     conn = conectar()
     cursor = conn.cursor()
     try:
         cursor.execute("""
-            INSERT INTO bolsas (nome, tipo, valor, estado) 
-            VALUES (?, ?, ?, ?)
-        """, (nome, tipo, valor, estado))
+            INSERT INTO bolsas (nome, tipo, valor, estado, media_minima, rendimento_maximo)
+            VALUES (?, ?, ?, ?, ?, ?)
+        """, (nome, tipo, valor, estado, media_minima, rendimento_maximo))
         conn.commit()
         return True
     except sqlite3.Error as e:

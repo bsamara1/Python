@@ -1,67 +1,116 @@
-# interface/admin/avaliacao.py
 import customtkinter as ctk
 import os
 import sys
 import sqlite3
 from tkinter import messagebox
 from PIL import Image
+import datetime
+import subprocess
+import tempfile
+from database.database import conectar
+
+# Tentar importar pyswip
+try:
+    from pyswip import Prolog
+    PROLOG_DISPONIVEL = True
+except ImportError:
+    PROLOG_DISPONIVEL = False
 
 class AvaliacaoPage(ctk.CTkFrame):
-    """Página de Avaliação com layout moderno, limpo e idêntico à referência"""
+    """Página de Avaliação com Regras Prolog Reais"""
 
     def __init__(self, master):
         super().__init__(master, fg_color="#F4F6FB")
 
-        self.caminho_db = self.obter_caminho_db()
         self.lista_estudantes = []
         self.lista_bolsas = []
-        
+        self.prolog_engine = self.inicializar_prolog()
+
         self.criar_interface()
         self.carregar_dados_combos()
 
-    def obter_caminho_db(self):
-        if getattr(sys, 'frozen', False):
-            base_dir = os.path.dirname(sys.executable)
-        else:
-            base_dir = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
-        # Garante o fallback se não encontrar na pasta acima
-        caminho = os.path.join(base_dir, 'database', 'sibes.db')
-        if not os.path.exists(caminho):
-            # Fallback para execução local padrão
-            base_dir = os.path.dirname(os.path.abspath(__file__))
-            caminho = os.path.join(base_dir, '..', '..', 'database', 'sibes.db')
-        return os.path.abspath(caminho)
+    def inicializar_prolog(self):
+        """Inicializa o motor Prolog"""
+        if not PROLOG_DISPONIVEL:
+            print("⚠️  SWI-Prolog não disponível. Instale de: https://www.swi-prolog.org/Download.html")
+            return None
+
+        try:
+            prolog = Prolog()
+            # Carregar as regras do arquivo
+            base_dir = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+            regras_path = os.path.join(base_dir, 'prolog', 'regras.pl')
+
+            if os.path.exists(regras_path):
+                prolog.consult(regras_path)
+                print(f"✓ Regras Prolog carregadas de: {regras_path}")
+            else:
+                print(f"⚠️  Arquivo de regras não encontrado: {regras_path}")
+            return prolog
+        except Exception as e:
+            print(f"Erro ao inicializar Prolog: {e}")
+            return None
 
     def carregar_dados_combos(self):
         """Carrega os dados dos estudantes e bolsas do SQLite"""
         try:
-            conn = sqlite3.connect(self.caminho_db)
+            conn = conectar()
             cursor = conn.cursor()
-            
-            cursor.execute("SELECT nome, media, rendimento FROM estudantes")
+
+            cursor.execute("SELECT id, nome, media, rendimento FROM estudantes")
             self.lista_estudantes = cursor.fetchall()
-            
-            cursor.execute("SELECT nome, tipo, valor FROM bolsas")
+
+            cursor.execute("SELECT id, nome, tipo FROM bolsas")
             self.lista_bolsas = cursor.fetchall()
-            
+
             conn.close()
-            
-            # Atualiza os comboboxes com os nomes reais
-            nomes_estudantes = [est[0] for est in self.lista_estudantes]
+
+            nomes_estudantes = [est[1] for est in self.lista_estudantes]
             if nomes_estudantes:
                 self.combo_estudante.configure(values=nomes_estudantes)
                 self.combo_estudante.set("Selecione um Estudante")
-                
-            nomes_bolsas = [b[0] for b in self.lista_bolsas]
+
+            nomes_bolsas = [b[1] for b in self.lista_bolsas]
             if nomes_bolsas:
                 self.combo_bolsa.configure(values=nomes_bolsas)
                 self.combo_bolsa.set("Selecione uma Bolsa")
-                
+
         except Exception as e:
-            print(f"Aviso ao carregar dados dos combos: {e}")
+            print(f"Aviso ao carregar dados: {e}")
+
+    def avaliar_com_prolog(self, tipo_bolsa, media, rendimento):
+        """Avalia elegibilidade usando Prolog real"""
+        if not self.prolog_engine:
+            return False, ["❌ Motor Prolog não disponível"]
+
+        try:
+            # Query Prolog: elegivel(TipoBolsa, Media, Rendimento)
+            query = f'elegivel("{tipo_bolsa}", {media}, {rendimento})'
+            resultado = list(self.prolog_engine.query(query))
+
+            if resultado:
+                # Elegível
+                motivos = [
+                    f"✓ Aprovado pela regra: elegivel('{tipo_bolsa}', {media}, {rendimento})",
+                    f"✓ Média: {media:.1f}v",
+                    f"✓ Rendimento: {rendimento:,.0f}v"
+                ]
+                return True, motivos
+            else:
+                # Não elegível
+                motivos = [
+                    f"✗ Não elegível para '{tipo_bolsa}'",
+                    f"✗ Critérios não cumpridos",
+                    f"  Média: {media:.1f}v",
+                    f"  Rendimento: {rendimento:,.0f}v"
+                ]
+                return False, motivos
+
+        except Exception as e:
+            return False, [f"❌ Erro ao executar Prolog: {str(e)}"]
 
     def avaliar_candidatura(self):
-        """Executa a lógica de simulação/avaliação baseada nos critérios da imagem"""
+        """Executa a avaliação com Prolog"""
         estudante_sel = self.combo_estudante.get()
         bolsa_sel = self.combo_bolsa.get()
 
@@ -69,40 +118,81 @@ class AvaliacaoPage(ctk.CTkFrame):
             messagebox.showwarning("Campos Incompletos", "Por favor, selecione um estudante e uma bolsa para avaliar.")
             return
 
-        # Encontra os dados do estudante selecionado
-        estudante_dados = next((e for e in self.lista_estudantes if e[0] == estudiante_sel), None)
-        bolsa_dados = next((b for b in self.lista_bolsas if b[0] == bolsa_sel), None)
+        # Encontra os dados
+        estudante_dados = next((e for e in self.lista_estudantes if e[1] == estudante_sel), None)
+        bolsa_dados = next((b for b in self.lista_bolsas if b[1] == bolsa_sel), None)
 
         if not estudante_dados or not bolsa_dados:
             messagebox.showerror("Erro", "Erro ao recuperar dados para avaliação.")
             return
 
-        nome, media, renda = estudante_dados
-        nome_bolsa, tipo_bolsa, valor_bolsa = bolsa_dados
+        id_est, nome, media, rendimento = estudante_dados
+        id_bolsa, nome_bolsa, tipo_bolsa = bolsa_dados
 
-        # Lógica de Avaliação Moderna baseada nas regras de negócio
-        if media >= 14.0 and renda < 50000:
-            resultado_estado = "Aprovado"
-            cor_badge = "#DEF7EC"
-            cor_texto_badge = "#03543F"
-        elif media >= 10.0 and renda < 80000:
-            resultado_estado = "Pendente"
-            cor_badge = "#FEF3C7"
-            cor_texto_badge = "#92400E"
-        else:
-            resultado_estado = "Rejeitado"
-            cor_badge = "#FDE8E8"
-            cor_texto_badge = "#9B1C1C"
+        # Aplicar regras Prolog
+        elegivel, motivos = self.avaliar_com_prolog(tipo_bolsa, media or 0, rendimento or 0)
 
-        # Atualiza a interface gráfica dinamicamente
+        # Atualizar interface
         self.lbl_res_nome.configure(text=str(nome))
         self.lbl_res_bolsa.configure(text=f"{nome_bolsa} ({tipo_bolsa})")
-        self.lbl_res_media.configure(text=f"{media:.2f}v / 20v")
-        self.lbl_res_renda.configure(text=f"{renda:,.2f} CVE")
+        self.lbl_res_media.configure(text=f"{media:.1f}v / 20v" if media else "0.0v / 20v")
+        self.lbl_res_renda.configure(text=f"{rendimento:,.0f} CVE" if rendimento else "0 CVE")
 
-        # Atualiza o Badge de Status
-        self.badge_status.configure(fg_color=cor_badge)
-        self.lbl_status.configure(text=resultado_estado.upper(), text_color=cor_texto_badge)
+        # Atualizar status
+        if elegivel:
+            self.badge_status.configure(fg_color="#DEF7EC")
+            self.lbl_status.configure(text="✓ APROVADO", text_color="#03543F")
+            cor_motivos = "#10B981"
+        else:
+            self.badge_status.configure(fg_color="#FDE8E8")
+            self.lbl_status.configure(text="✗ REJEITADO", text_color="#9B1C1C")
+            cor_motivos = "#EF4444"
+
+        # Atualizar motivos
+        self.atualizar_motivos(motivos, cor_motivos)
+
+        # Guardar histórico
+        self.salvar_avaliacao(id_est, id_bolsa, elegivel, "\n".join(motivos))
+
+    def atualizar_motivos(self, motivos, cor):
+        """Atualiza a lista de motivos visualmente"""
+        for widget in self.frame_motivos.winfo_children():
+            widget.destroy()
+
+        for motivo in motivos:
+            lbl = ctk.CTkLabel(
+                self.frame_motivos, text=motivo, font=("Segoe UI", 11),
+                text_color=cor, justify="left", wraplength=400
+            )
+            lbl.pack(anchor="w", padx=5, pady=2)
+
+    def salvar_avaliacao(self, id_est, id_bolsa, aprovado, motivos):
+        """Salva a avaliação no histórico"""
+        try:
+            conn = conectar()
+            cursor = conn.cursor()
+
+            cursor.execute("""
+                CREATE TABLE IF NOT EXISTS historico_avaliacoes (
+                    id INTEGER PRIMARY KEY AUTOINCREMENT,
+                    estudante_id INTEGER,
+                    bolsa_id INTEGER,
+                    resultado TEXT,
+                    motivos TEXT,
+                    data_avaliacao DATETIME DEFAULT CURRENT_TIMESTAMP
+                )
+            """)
+
+            resultado = "Aprovado" if aprovado else "Rejeitado"
+            cursor.execute("""
+                INSERT INTO historico_avaliacoes (estudante_id, bolsa_id, resultado, motivos)
+                VALUES (?, ?, ?, ?)
+            """, (id_est, id_bolsa, resultado, motivos))
+
+            conn.commit()
+            conn.close()
+        except Exception as e:
+            print(f"Erro ao salvar avaliação: {e}")
 
     def criar_interface(self):
         """Gera a interface pixel-perfect baseada no layout moderno fornecido"""
@@ -214,16 +304,27 @@ class AvaliacaoPage(ctk.CTkFrame):
                 sep = ctk.CTkFrame(grid_dados, height=1, fg_color="#F3F4F6")
                 sep.grid(row=idx*2 + 1, column=0, columnspan=2, sticky="ew")
 
-        # Container do Status de Aprovação (Fundo Inferior)
+        # Container do Status de Aprovação
         ctk.CTkLabel(card_direito, text="Estado da Elegibilidade", font=("Segoe UI", 12, "bold"), text_color="#4B5563").pack(anchor="w", padx=30, pady=(30, 6))
-        
-        # Badge de Status Retangular Expandido
+
         self.badge_status = ctk.CTkFrame(card_direito, fg_color="#F3F4F6", height=65, corner_radius=10)
-        self.badge_status.pack(fill="x", padx=30, pady=(0, 25))
+        self.badge_status.pack(fill="x", padx=30, pady=(0, 15))
         self.badge_status.pack_propagate(False)
 
         self.lbl_status = ctk.CTkLabel(
-            self.badge_status, text="AGUARDANDO SIMULAÇÃO", 
+            self.badge_status, text="AGUARDANDO SIMULAÇÃO",
             font=("Segoe UI", 15, "bold"), text_color="#4B5563"
         )
         self.lbl_status.place(relx=0.5, rely=0.5, anchor="center")
+
+        # Seção de Motivos
+        ctk.CTkLabel(card_direito, text="Análise de Elegibilidade", font=("Segoe UI", 12, "bold"), text_color="#4B5563").pack(anchor="w", padx=30, pady=(15, 8))
+
+        self.frame_motivos = ctk.CTkFrame(card_direito, fg_color="#F9FAFB", corner_radius=8, border_width=1, border_color="#E5E7EB")
+        self.frame_motivos.pack(fill="both", expand=True, padx=30, pady=(0, 30))
+
+        # Mensagem inicial
+        ctk.CTkLabel(
+            self.frame_motivos, text="Clique em 'Processar Avaliação' para ver a análise detalhada.",
+            font=("Segoe UI", 11), text_color="#9CA3AF"
+        ).pack(anchor="w", padx=10, pady=10)

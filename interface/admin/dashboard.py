@@ -7,12 +7,13 @@ from interface.admin.bolsas import BolsasPage
 from interface.admin.candidaturas import Candidaturas
 from interface.admin.avaliacao import AvaliacaoPage
 from interface.admin.relatorios import RelatoriosPage
-
-# Se o perfilUtilizador estiver na raiz do projeto:
 from interface.admin.perfilUtilizador import PerfilUtilizador
-
-# IMPORTAÇÃO DA BASE DE DADOS
 from database.database import criar_base, conectar
+
+import matplotlib.pyplot as plt
+from matplotlib.backends.backend_tkagg import FigureCanvasTkAgg
+from matplotlib.figure import Figure
+import datetime
 
 class App(ctk.CTkToplevel):
 
@@ -102,7 +103,7 @@ class App(ctk.CTkToplevel):
                 image=icone,
                 compound="left",
                 anchor="w",
-                fg_color="transparent",
+                fg_color="#142850",
                 hover_color="#11457B",
                 text_color="white",
                 height=45,
@@ -121,7 +122,7 @@ class App(ctk.CTkToplevel):
             image=logout,
             compound="left",
             anchor="w",
-            fg_color="transparent",
+            fg_color="#142850",
             hover_color="#2A3F5F",
             text_color="#FF6B6B",
             height=45,
@@ -164,15 +165,18 @@ class App(ctk.CTkToplevel):
             # 4. Encerra o painel de administração atual de forma limpa
             self.destroy()
     def limpar_area_conteudo(self):
-        for widget in self.area_conteudo.winfo_children():
-            widget.destroy()
+        for widget in list(self.area_conteudo.winfo_children()):
+            try:
+                widget.destroy()
+            except Exception:
+                pass
 
     def destacar_botao_menu(self, nome):
         for texto, botao in self.botoes.items():
             if texto == nome:
                 botao.configure(fg_color="#11457B")
             else:
-                botao.configure(fg_color="transparent")
+                botao.configure(fg_color="#142850")
 
     def reorganizar_layout_com_topo(self):
         """Remove e reinsere os elements na ordem sequencial correta para evitar erros do Tkinter"""
@@ -255,7 +259,7 @@ class App(ctk.CTkToplevel):
         bell_icon = self.carregar("assets/notificacao.png", (22, 22))
         self.btn_notif = ctk.CTkButton(
             actions_frame, image=bell_icon, text="", width=40, height=40,
-            fg_color="transparent", hover_color="#F0F2F5", command=lambda: print("Notificações clicadas")
+            fg_color="#F4F6FB", hover_color="#E5E7EB", command=lambda: print("Notificações clicadas")
         )
         self.btn_notif.pack(side="left", padx=(0, 10))
 
@@ -288,45 +292,162 @@ class App(ctk.CTkToplevel):
 
         self.mostrar_painel()  
 
+    def obter_candidaturas_por_estado(self):
+        """Retorna contagem de candidaturas por estado"""
+        stats = {"Aprovada": 0, "Pendente": 0, "Rejeitada": 0}
+        try:
+            conn = conectar()
+            cursor = conn.cursor()
+            cursor.execute("SELECT estado, COUNT(*) FROM candidaturas GROUP BY estado")
+            for estado, count in cursor.fetchall():
+                if estado in stats:
+                    stats[estado] = count
+            conn.close()
+        except Exception as e:
+            print(f"Erro ao carregar candidaturas por estado: {e}")
+        return stats
+
+    def obter_candidaturas_recentes(self, limit=5):
+        """Retorna as últimas candidaturas recentes"""
+        try:
+            conn = conectar()
+            cursor = conn.cursor()
+            cursor.execute("""
+                SELECT e.nome, b.nome, c.estado, c.data_candidatura
+                FROM candidaturas c
+                JOIN estudantes e ON c.estudante_id = e.id
+                JOIN bolsas b ON c.bolsa_id = b.id
+                ORDER BY c.data_candidatura DESC
+                LIMIT ?
+            """, (limit,))
+            dados = cursor.fetchall()
+            conn.close()
+            return dados
+        except Exception as e:
+            print(f"Erro ao carregar candidaturas recentes: {e}")
+            return []
+
     def carregar_painel(self):
         frame = ctk.CTkFrame(self.area_conteudo, fg_color="transparent")
         frame.pack(fill="both", expand=True)
 
+        # Cabeçalho
         area = ctk.CTkFrame(frame, fg_color="transparent")
         area.pack(fill="x", padx=35, pady=20)
 
         ctk.CTkLabel(area, text="Bem-vindo, Administrador! 👋", font=("Segoe UI", 28, "bold"), text_color="#162447").pack(anchor="w")
         ctk.CTkLabel(area, text="Aqui está um resumo geral do sistema.", text_color="#6B7280").pack(anchor="w")
 
+        # Cards de métricas
         self.criar_cards(frame)
 
-        baixo = ctk.CTkFrame(frame, fg_color="transparent")
-        baixo.pack(fill="both", expand=True, padx=35, pady=(15, 30))
-        baixo.grid_columnconfigure(0, weight=1)
-        baixo.grid_columnconfigure(1, weight=1)
+        # Gráficos
+        graficos_frame = ctk.CTkFrame(frame, fg_color="transparent")
+        graficos_frame.pack(fill="both", expand=True, padx=35, pady=(15, 30))
+        graficos_frame.grid_columnconfigure(0, weight=1)
+        graficos_frame.grid_columnconfigure(1, weight=1)
 
-        box1 = ctk.CTkFrame(baixo, fg_color="white", corner_radius=12, border_width=1, border_color="#E5E7EB")
-        box1.grid(row=0, column=0, sticky="nsew", padx=(0, 10))
-        ctk.CTkLabel(box1, text="Candidaturas por Estado", font=("Segoe UI", 18, "bold")).pack(anchor="w", padx=20, pady=20)
-        ctk.CTkLabel(box1, justify="left", text="● Aprovadas: 40\n\n● Pendentes: 25\n\n● Rejeitadas: 20").pack(anchor="w", padx=30, pady=40)
+        # Gráfico de pizza - Candidaturas por Estado
+        self.criar_grafico_pizza(graficos_frame)
 
-        box2 = ctk.CTkFrame(baixo, fg_color="white", corner_radius=12, border_width=1, border_color="#E5E7EB")
-        box2.grid(row=0, column=1, sticky="nsew")
-        ctk.CTkLabel(box2, text="Candidaturas Recentes", font=("Segoe UI", 18, "bold")).pack(anchor="w", padx=20, pady=20)
+        # Gráfico de barras - Candidaturas por mês
+        self.criar_grafico_linhas(graficos_frame)
 
-        dados = [
-            ("João Silva", "Bolsa Mérito", "Pendente"),
-            ("Ana Santos", "Bolsa Social", "Aprovada"),
-            ("Carlos Lima", "Bolsa Desporto", "Pendente"),
-            ("Maria Costa", "Bolsa Excelência", "Rejeitada")
-        ]
+        # Box com candidaturas recentes
+        box_recentes = ctk.CTkFrame(graficos_frame, fg_color="white", corner_radius=12, border_width=1, border_color="#E5E7EB")
+        box_recentes.grid(row=1, column=0, columnspan=2, sticky="nsew", pady=(15, 0))
 
-        for nome, bolsa, estado in dados:
-            linha = ctk.CTkFrame(box2, fg_color="transparent")
-            linha.pack(fill="x", padx=20, pady=5)
-            ctk.CTkLabel(linha, text=nome, width=160, anchor="w").pack(side="left")
-            ctk.CTkLabel(linha, text=bolsa, width=160, anchor="w").pack(side="left")
-            ctk.CTkLabel(linha, text=estado).pack(side="right")
+        ctk.CTkLabel(box_recentes, text="📋 Candidaturas Recentes", font=("Segoe UI", 16, "bold"), text_color="#142850").pack(anchor="w", padx=20, pady=(15, 10))
+
+        candidaturas = self.obter_candidaturas_recentes(5)
+        if candidaturas:
+            for nome, bolsa, estado, data in candidaturas:
+                linha = ctk.CTkFrame(box_recentes, fg_color="transparent")
+                linha.pack(fill="x", padx=20, pady=5)
+
+                cor_estado = "#10B981" if estado == "Aprovada" else "#F59E0B" if estado == "Pendente" else "#EF4444"
+                ctk.CTkLabel(linha, text=nome, width=200, anchor="w", font=("Segoe UI", 11)).pack(side="left")
+                ctk.CTkLabel(linha, text=bolsa, width=200, anchor="w", font=("Segoe UI", 11), text_color="#6B7280").pack(side="left")
+                ctk.CTkLabel(linha, text=estado, font=("Segoe UI", 11, "bold"), text_color=cor_estado).pack(side="left", padx=(20, 0))
+        else:
+            ctk.CTkLabel(box_recentes, text="Nenhuma candidatura encontrada.", font=("Segoe UI", 12), text_color="#9CA3AF").pack(pady=20)
+
+    def criar_grafico_pizza(self, parent):
+        """Cria gráfico de pizza com candidaturas por estado"""
+        box1 = ctk.CTkFrame(parent, fg_color="white", corner_radius=12, border_width=1, border_color="#E5E7EB")
+        box1.grid(row=0, column=0, sticky="nsew", padx=(0, 10), pady=0)
+
+        stats = self.obter_candidaturas_por_estado()
+        valores = list(stats.values())
+        labels = [f"{k}: {v}" for k, v in stats.items()]
+
+        if sum(valores) == 0:
+            ctk.CTkLabel(box1, text="Candidaturas por Estado", font=("Segoe UI", 16, "bold"), text_color="#142850").pack(pady=(15, 10), anchor="w", padx=20)
+            ctk.CTkLabel(box1, text="Sem dados disponíveis", font=("Segoe UI", 12), text_color="#9CA3AF").pack(pady=40)
+            return
+
+        fig = Figure(figsize=(5, 4), dpi=80, facecolor='white')
+        ax = fig.add_subplot(111)
+
+        cores = ["#10B981", "#F59E0B", "#EF4444"]
+        ax.pie(valores, labels=[k for k in stats.keys()], autopct='%1.1f%%', colors=cores, startangle=90)
+        ax.set_title("Candidaturas por Estado", fontsize=14, fontweight="bold", pad=15)
+
+        canvas = FigureCanvasTkAgg(fig, master=box1)
+        canvas.draw()
+        canvas.get_tk_widget().pack(fill="both", expand=True, padx=15, pady=15)
+
+    def criar_grafico_linhas(self, parent):
+        """Cria gráfico de linha com candidaturas por mês"""
+        box2 = ctk.CTkFrame(parent, fg_color="white", corner_radius=12, border_width=1, border_color="#E5E7EB")
+        box2.grid(row=0, column=1, sticky="nsew", padx=0, pady=0)
+
+        # Dados simulados de candidaturas por mês
+        try:
+            conn = conectar()
+            cursor = conn.cursor()
+            cursor.execute("""
+                SELECT strftime('%Y-%m', data_candidatura) as mes, COUNT(*) as count
+                FROM candidaturas
+                WHERE data_candidatura IS NOT NULL
+                GROUP BY mes
+                ORDER BY mes DESC
+                LIMIT 6
+            """)
+            dados = cursor.fetchall()
+            conn.close()
+
+            if dados:
+                dados = sorted(dados)
+                meses = [d[0] for d in dados]
+                counts = [d[1] for d in dados]
+            else:
+                meses = []
+                counts = []
+        except Exception as e:
+            print(f"Erro ao carregar dados de meses: {e}")
+            meses = []
+            counts = []
+
+        if not meses:
+            ctk.CTkLabel(box2, text="Candidaturas por Mês", font=("Segoe UI", 16, "bold"), text_color="#142850").pack(pady=(15, 10), anchor="w", padx=20)
+            ctk.CTkLabel(box2, text="Sem dados disponíveis", font=("Segoe UI", 12), text_color="#9CA3AF").pack(pady=40)
+            return
+
+        fig = Figure(figsize=(5, 4), dpi=80, facecolor='white')
+        ax = fig.add_subplot(111)
+
+        ax.plot(range(len(meses)), counts, marker='o', color='#1A5CFF', linewidth=2, markersize=6)
+        ax.fill_between(range(len(meses)), counts, alpha=0.3, color='#1A5CFF')
+        ax.set_xticks(range(len(meses)))
+        ax.set_xticklabels([m[-2:] for m in meses], rotation=45)
+        ax.set_title("Candidaturas por Mês", fontsize=14, fontweight="bold", pad=15)
+        ax.set_ylabel("Quantidade")
+        ax.grid(True, alpha=0.3)
+
+        canvas = FigureCanvasTkAgg(fig, master=box2)
+        canvas.draw()
+        canvas.get_tk_widget().pack(fill="both", expand=True, padx=15, pady=15)
 
     def criar_cards(self, parent):
         frame = ctk.CTkFrame(parent, fg_color="transparent")
