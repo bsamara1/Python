@@ -8,6 +8,7 @@ from database.database import DATABASE, conectar
 
 # Importação da sua Dashboard do Admin
 from interface.admin.dashboard import App as DashboardAdmin
+from interface.estudantes.dashboard import App as DashboardEstudante
 import json
 
 base_dir = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
@@ -434,8 +435,12 @@ class Login:
                     dashboard = DashboardAdmin(parent=self.root, id_utilizador_logado=id_utilizador)
                     dashboard.protocol("WM_DELETE_WINDOW", lambda: [dashboard.destroy(), self.root.destroy()])
                     dashboard.mainloop()
-                else:
-                    messagebox.showerror("Erro", "Tipo de perfil não mapeado no sistema.")
+                elif perfil == "Estudante":
+                    if DashboardEstudante is not None:
+                        # Abre a dashboard desenvolvida para estudantes
+                        dashboard_est = DashboardEstudante(parent=self.root, id_utilizador_logado=id_utilizador)
+                        dashboard_est.protocol("WM_DELETE_WINDOW", lambda: [dashboard_est.destroy(), self.root.destroy()])
+                        dashboard_est.mainloop()
             else:
                 messagebox.showerror("Erro", "Email ou palavra-passe incorretos.")
 
