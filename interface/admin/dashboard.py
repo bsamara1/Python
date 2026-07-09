@@ -44,7 +44,7 @@ class App(ctk.CTkToplevel):
         self.sidebar.pack(side="left", fill="y")
         self.sidebar.pack_propagate(False)
 
-        logo = self.carregar("assets/logo.png", (40, 40))
+        logo = self.carregar("assets/logo1.png", (40, 40))
         logo_frame = ctk.CTkFrame(self.sidebar, fg_color="transparent")
         logo_frame.pack(fill="x", padx=20, pady=(25, 35))
 
