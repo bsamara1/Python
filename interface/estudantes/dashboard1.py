@@ -9,12 +9,9 @@ if raiz_projeto not in sys.path:
 import customtkinter as ctk
 from PIL import Image
 from tkinter import messagebox
-import os
-
-# Importações dos módulos locais de estudante
-from bolsas import BolsasPage
-from minhas_candidaturas import Candidaturas
-from perfil import PerfilUtilizador
+from interface.estudantes.bolsas import BolsasPage
+from interface.estudantes.minhas_candidaturas import Candidaturas
+from interface.estudantes.perfil import PerfilUtilizador
 
 import matplotlib.pyplot as plt
 from matplotlib.backends.backend_tkagg import FigureCanvasTkAgg
@@ -25,14 +22,16 @@ try:
 except ImportError:
     def conectar():
         import sqlite3
-        return sqlite3.connect(os.path.join(diretorio_atual, 'database', 'sibes.db'))
+        caminho_db = os.path.join(raiz_projeto, 'database', 'sibes.db')
+        os.makedirs(os.path.dirname(caminho_db), exist_ok=True)
+        return sqlite3.connect(caminho_db)
 
 class DashboardEstudante(ctk.CTkToplevel):
 
-    def __init__(self, parent, id_utilizador_logado=None):
-        super().__init__(parent)
+    def __init__(self, parent, id_utilizador_logado):
+        super().__init__()
+        self.parent = parent
 
-        # ID do estudante logado para filtros
         self.id_utilizador_logado = id_utilizador_logado if id_utilizador_logado else 1
         self.title("SIBES - Painel do Estudante")
         self.state("zoomed")
@@ -52,8 +51,9 @@ class DashboardEstudante(ctk.CTkToplevel):
         self.main_ui()
 
     def carregar(self, caminho, tamanho):
-        if os.path.exists(caminho):
-            return ctk.CTkImage(Image.open(caminho), size=tamanho)
+        caminho_absoluto = os.path.join(raiz_projeto, caminho) if not os.path.isabs(caminho) else caminho
+        if os.path.exists(caminho_absoluto):
+            return ctk.CTkImage(Image.open(caminho_absoluto), size=tamanho)
         return None
 
     def obter_dados_estudante(self):
@@ -73,12 +73,29 @@ class DashboardEstudante(ctk.CTkToplevel):
         try:
             conn = conectar()
             cursor = conn.cursor()
+            
+            cursor.execute("SELECT LOWER(email) FROM utilizadores WHERE id = ?", (self.id_utilizador_logado,))
+            user_res = cursor.fetchone()
+            if not user_res or not user_res[0]:
+                conn.close()
+                return dados
+            user_email = user_res[0]
+            
+            cursor.execute("SELECT id FROM estudantes WHERE LOWER(email) = ?", (user_email,))
+            estudante_res = cursor.fetchone()
+            if not estudante_res:
+                conn.close()
+                return dados
+            id_estudante_real = estudante_res[0]
+            
+            # Query simplificada: Usamos SUM(b.valor) diretamente porque b.valor já é REAL
             cursor.execute("""
-                SELECT estado, COUNT(*), SUM(CAST(REPLACE(REPLACE(valor, ' CVE', ''), '.', '') AS INTEGER)) 
-                FROM candidaturas 
-                WHERE id_utilizador = ? 
-                GROUP BY estado
-            """, (self.id_utilizador_logado,))
+                SELECT c.estado, COUNT(*), SUM(b.valor)
+                FROM candidaturas c
+                JOIN bolsas b ON c.bolsa_id = b.id
+                WHERE c.estudante_id = ? 
+                GROUP BY c.estado
+            """, (id_estudante_real,))
             
             linhas = cursor.fetchall()
             for linha in linhas:
@@ -93,12 +110,60 @@ class DashboardEstudante(ctk.CTkToplevel):
                     dados["aprovadas"] = qtd
                     dados["valor_total"] += valor_parcial
             conn.close()
-        except Exception:
-            pass
+        except Exception as e:
+            print(f"Erro ao calcular estatísticas: {e}") # Ajuda a debugar se algo falhar
         return dados
 
+    def criar_historico_recente(self, parent):
+        box2 = ctk.CTkFrame(parent, fg_color="white", corner_radius=12, border_width=1, border_color="#E5E7EB")
+        box2.grid(row=0, column=1, sticky="nsew", padx=0, pady=0)
+
+        ctk.CTkLabel(box2, text="📋 Histórico Recente", font=("Segoe UI", 16, "bold"), text_color="#142850").pack(anchor="w", padx=20, pady=(15, 10))
+
+        try:
+            conn = conectar()
+            cursor = conn.cursor()
+            
+            cursor.execute("SELECT LOWER(email) FROM utilizadores WHERE id = ?", (self.id_utilizador_logado,))
+            user_res = cursor.fetchone()
+            if not user_res or not user_res[0]:
+                conn.close()
+                return
+            user_email = user_res[0]
+            
+            cursor.execute("SELECT id FROM estudantes WHERE LOWER(email) = ?", (user_email,))
+            estudante_res = cursor.fetchone()
+            if not estudante_res:
+                conn.close()
+                return
+            id_estudante_real = estudante_res[0]
+            
+            cursor.execute("""
+                SELECT c.id, b.nome, c.data_candidatura, c.estado 
+                FROM candidaturas c
+                JOIN bolsas b ON c.bolsa_id = b.id
+                WHERE c.estudante_id = ? 
+                ORDER BY c.id DESC LIMIT 3
+            """, (id_estudante_real,))
+            registos = cursor.fetchall()
+            conn.close()
+
+            if registos:
+                for reg in registos:
+                    linha = ctk.CTkFrame(box2, fg_color="#F8FAFC", height=45, corner_radius=8)
+                    linha.pack(fill="x", padx=20, pady=5)
+                    
+                    cor_estado = "#10B981" if reg[3] == "Aprovada" else "#F59E0B" if reg[3] == "Pendente" else "#EF4444"
+                    ctk.CTkLabel(linha, text=f"C00{reg[0]}", font=("Segoe UI", 11, "bold")).pack(side="left", padx=10)
+                    ctk.CTkLabel(linha, text=reg[1], font=("Segoe UI", 11)).pack(side="left", padx=10)
+                    ctk.CTkLabel(linha, text=reg[3], font=("Segoe UI", 11, "bold"), text_color=cor_estado).pack(side="right", padx=15)
+                    ctk.CTkLabel(linha, text=reg[2], font=("Segoe UI", 11), text_color="#718096").pack(side="right", padx=10)
+            else:
+                ctk.CTkLabel(box2, text="Nenhum registo encontrado.", font=("Segoe UI", 12), text_color="#9CA3AF").pack(pady=40)
+        except Exception:
+            ctk.CTkLabel(box2, text="Erro ao carregar histórico.", font=("Segoe UI", 12), text_color="#EF4444").pack(pady=40)
+
     def sidebar_ui(self):
-        # Sidebar com a cor escura #0B2A4A herdada do segundo código
         self.sidebar = ctk.CTkFrame(self.container, width=250, fg_color="#0B2A4A")
         self.sidebar.pack(side="left", fill="y")
         self.sidebar.pack_propagate(False)
@@ -107,7 +172,6 @@ class DashboardEstudante(ctk.CTkToplevel):
         logo_frame = ctk.CTkFrame(self.sidebar, fg_color="transparent")
         logo_frame.pack(fill="x", padx=20, pady=(25, 35))
 
-        # Títulos adaptados para o Candidato/Estudante
         if logo:
             ctk.CTkLabel(logo_frame, image=logo, text="").grid(row=0, column=0, rowspan=2, padx=10)
         ctk.CTkLabel(logo_frame, text="SIBES", font=("Segoe UI", 20, "bold"), text_color="white").grid(row=0, column=1, sticky="w")
@@ -118,7 +182,6 @@ class DashboardEstudante(ctk.CTkToplevel):
 
         self.botoes = {}
 
-        # Menu Contextualizado para o Estudante
         menu = [
             ("Painel Principal", icon("casa.png"), self.mostrar_painel),
             ("Minhas Candidaturas", icon("candidatura.png"), self.mostrar_candidaturas),
@@ -156,13 +219,34 @@ class DashboardEstudante(ctk.CTkToplevel):
             hover_color="#2A3F5F",
             text_color="#FF6B6B",
             height=45,
-            command=self.destroy
+            command=self.terminar_sessao,
         )
         self.btn_logout.pack(side="bottom", fill="x", padx=15, pady=(0, 20))
 
         self.divisoria_logout = ctk.CTkFrame(self.sidebar, height=1, fg_color="#35506E")
         self.divisoria_logout.pack(side="bottom", fill="x", padx=15, pady=(0, 15))
 
+    def terminar_sessao(self):
+        if messagebox.askyesno("Terminar Sessão", "Deseja realmente terminar a sessão?"):
+            if self.master:
+                try:
+                    def limpar_campo_senha(parent):
+                        for widget in parent.winfo_children():
+                            if isinstance(widget, ctk.CTkEntry):
+                                if widget.cget("show") == "*":
+                                    widget.delete(0, 'end')
+                            if widget.winfo_children():
+                                limpar_campo_senha(widget)
+                    limpar_campo_senha(self.master)
+                except Exception as e:
+                    print(f"Aviso ao limpar campo de senha: {e}")
+
+                self.master.update_idletasks()
+                self.master.deiconify()
+                self.master.state("zoomed")
+                self.master.focus_force()
+            self.destroy()
+            
     def limpar_area_conteudo(self):
         for widget in list(self.area_conteudo.winfo_children()):
             try:
@@ -197,7 +281,6 @@ class DashboardEstudante(ctk.CTkToplevel):
         actions_frame = ctk.CTkFrame(self.top_bar, fg_color="transparent")
         actions_frame.pack(side="right", padx=30)
 
-        # Perfil à direita com escopo de Estudante
         user = ctk.CTkFrame(actions_frame, fg_color="transparent")
         user.pack(side="left", padx=10)
 
@@ -228,7 +311,6 @@ class DashboardEstudante(ctk.CTkToplevel):
 
         ctk.CTkLabel(area, text=f"Bem-vindo de volta, {self.nome_usuario}! 👋", font=("Segoe UI", 28, "bold"), text_color="#162447").pack(anchor="w")
         
-        # Carrega cartões dinâmicos com base de dados filtrada pelo ID do aluno
         dados_bd = self.obter_estatisticas_reais()
 
         cards_frame = ctk.CTkFrame(frame, fg_color="transparent")
@@ -240,7 +322,6 @@ class DashboardEstudante(ctk.CTkToplevel):
         self.criar_card(cards_frame, 2, "Aprovadas", "Prontas para benefício", str(dados_bd["aprovadas"]), "#ECFFF0", "#BFEFCC", "assets/casa.png")
         self.criar_card(cards_frame, 3, "Valor da Bolsa", "Total anual acumulado", f"{dados_bd['valor_total']:,} CVE".replace(",", "."), "#F6EEFF", "#D9C6FF", "assets/perfil.png")
 
-        # Gráficos e Histórico Recente
         graficos_frame = ctk.CTkFrame(frame, fg_color="transparent")
         graficos_frame.pack(fill="both", expand=True, padx=35, pady=(15, 30))
         graficos_frame.grid_columnconfigure(0, weight=1)
@@ -293,40 +374,6 @@ class DashboardEstudante(ctk.CTkToplevel):
         canvas.draw()
         canvas.get_tk_widget().pack(fill="both", expand=True, padx=15, pady=15)
 
-    def criar_historico_recente(self, parent):
-        box2 = ctk.CTkFrame(parent, fg_color="white", corner_radius=12, border_width=1, border_color="#E5E7EB")
-        box2.grid(row=0, column=1, sticky="nsew", padx=0, pady=0)
-
-        ctk.CTkLabel(box2, text="📋 Histórico Recente", font=("Segoe UI", 16, "bold"), text_color="#142850").pack(anchor="w", padx=20, pady=(15, 10))
-
-        try:
-            conn = conectar()
-            cursor = conn.cursor()
-            cursor.execute("""
-                SELECT id, bolsa_nome, data_candidatura, estado 
-                FROM candidaturas 
-                WHERE id_utilizador = ? 
-                ORDER BY id DESC LIMIT 3
-            """, (self.id_utilizador_logado,))
-            registos = cursor.fetchall()
-            conn.close()
-
-            if registos:
-                for reg in registos:
-                    linha = ctk.CTkFrame(box2, fg_color="#F8FAFC", height=45, corner_radius=8)
-                    linha.pack(fill="x", padx=20, pady=5)
-                    
-                    cor_estado = "#10B981" if reg[3] == "Aprovada" else "#F59E0B" if reg[3] == "Pendente" else "#EF4444"
-                    ctk.CTkLabel(linha, text=f"C00{reg[0]}", font=("Segoe UI", 11, "bold")).pack(side="left", padx=10)
-                    ctk.CTkLabel(linha, text=reg[1], font=("Segoe UI", 11)).pack(side="left", padx=10)
-                    ctk.CTkLabel(linha, text=reg[3], font=("Segoe UI", 11, "bold"), text_color=cor_estado).pack(side="right", padx=15)
-                    ctk.CTkLabel(linha, text=reg[2], font=("Segoe UI", 11), text_color="#718096").pack(side="right", padx=10)
-            else:
-                ctk.CTkLabel(box2, text="Nenhum registo encontrado.", font=("Segoe UI", 12), text_color="#9CA3AF").pack(pady=40)
-        except Exception:
-            ctk.CTkLabel(box2, text="Erro ao carregar histórico.", font=("Segoe UI", 12), text_color="#EF4444").pack(pady=40)
-
-    # Navegação das Páginas do Estudante
     def mostrar_painel(self):
         self.reorganizar_layout_com_topo()
         self.destacar_botao_menu("Painel Principal")
@@ -338,14 +385,21 @@ class DashboardEstudante(ctk.CTkToplevel):
         self.destacar_botao_menu("Minhas Candidaturas")
         self.top_bar.pack_forget()
         self.limpar_area_conteudo()
-        pagina = Candidaturas(self.area_conteudo)
+        
+        # 🔥 Passa o ID correto do utilizador para filtrar apenas as candidaturas dele
+        pagina = Candidaturas(self.area_conteudo, id_utilizador_logado=self.id_utilizador_logado)
         pagina.pack(fill="both", expand=True, padx=35, pady=20)
 
     def mostrar_bolsas(self):
         self.destacar_botao_menu("Bolsas Disponíveis")
         self.top_bar.pack_forget()
         self.limpar_area_conteudo()
-        pagina = BolsasPage(self.area_conteudo)
+        
+        pagina = BolsasPage(
+            master=self.area_conteudo, 
+            role="estudante", 
+            id_estudante=self.id_utilizador_logado
+        )
         pagina.pack(fill="both", expand=True, padx=35, pady=20)
 
     def mostrar_avaliacao(self):
@@ -359,7 +413,7 @@ class DashboardEstudante(ctk.CTkToplevel):
         
         ctk.CTkLabel(frame_prolog, text="🧠 Mecanismo de Inferência SIBES", font=("Segoe UI", 18, "bold"), text_color="#142850").pack(anchor="w", padx=30, pady=(30, 8))
         btn_validar = ctk.CTkButton(
-            frame_prolog, text="🚀 Executar Avaliação de Elegibilidade", font=("Segoe UI", 13, "bold"),
+            frame_prolog, text="🚀 Executar Evaluation de Elegibilidade", font=("Segoe UI", 13, "bold"),
             fg_color="#2563EB", hover_color="#1D4ED8", height=42, corner_radius=8,
             command=lambda: messagebox.showinfo("SIBES Prolog Engine", "Inferência executada com sucesso!\nTodos os critérios regulamentares estão em conformidade.")
         )

@@ -2,7 +2,6 @@ import customtkinter as ctk
 import os
 import sys
 import sqlite3
-import re
 from tkinter import messagebox
 
 # =========================================================================
@@ -10,8 +9,6 @@ from tkinter import messagebox
 # =========================================================================
 diretorio_atual = os.path.dirname(os.path.abspath(__file__))
 
-# Sobe até encontrar a raiz onde reside a pasta 'database'
-# Testa subir 1 nível, 2 níveis e 3 níveis consecutivamente
 possiveis_raizes = [
     os.path.abspath(os.path.join(diretorio_atual, "..")),
     os.path.abspath(os.path.join(diretorio_atual, "..", "..")),
@@ -31,12 +28,10 @@ for raiz in possiveis_raizes:
         continue
 
 if not conectado:
-    # Fallback caso a estrutura esteja fora dos padrões testados
     try:
         from database import conectar
     except (ImportError, ModuleNotFoundError):
         def conectar():
-            # Cria uma ligação direta local se o módulo não for descoberto de todo
             caminho_local_db = os.path.join(diretorio_atual, "database", "sibes.db")
             if not os.path.exists(os.path.dirname(caminho_local_db)):
                 caminho_local_db = os.path.join(os.path.dirname(diretorio_atual), "database", "sibes.db")
@@ -47,10 +42,11 @@ if not conectado:
 # =========================================================================
 class BolsasPage(ctk.CTkFrame):
     """Página de Visualização/Gestão de Bolsas adaptada dinamicamente ao tipo de utilizador"""
-    # (O restante código da classe permanece idêntico)
-    def __init__(self, master, role="estudante"):  # Adicionado o parâmetro 'role'
+    
+    def __init__(self, master, role="estudante", id_estudante=1):
         super().__init__(master, fg_color="#F4F6FB")
         self.role = role.lower()
+        self.id_estudante = id_estudante  
         self.bolsas_data = []
         self.coluna_ordenada = None
         self.ordem_ascendente = True
@@ -63,7 +59,6 @@ class BolsasPage(ctk.CTkFrame):
             conn = conectar()
             cursor = conn.cursor()
             
-            # Se for estudante, filtra apenas pelas bolsas Ativas diretamente na Query
             if self.role == "estudante":
                 cursor.execute("SELECT id, nome, tipo, valor, estado, media_minima, rendimento_maximo FROM bolsas WHERE estado = 'Ativo'")
             else:
@@ -85,14 +80,12 @@ class BolsasPage(ctk.CTkFrame):
         frame_titulos = ctk.CTkFrame(frame_topo, fg_color="transparent")
         frame_titulos.pack(side="left", fill="y", anchor="w")
 
-        # Texto adaptado ao Estudante
         titulo_texto = "Bolsas Disponíveis" if self.role == "estudante" else "Bolsas"
         subtitulo_texto = "Consulte as bolsas e editais de candidatura abertos." if self.role == "estudante" else "Gerir todas as bolsas e editais registados."
 
         ctk.CTkLabel(frame_titulos, text=titulo_texto, font=("Segoe UI", 24, "bold"), text_color="#142850").pack(anchor="w")
         ctk.CTkLabel(frame_titulos, text=subtitulo_texto, font=("Segoe UI", 13), text_color="#6B7280").pack(anchor="w", pady=(2, 0))
 
-        # Botão "Nova Bolsa" visível APENAS para Admin
         if self.role != "estudante":
             ctk.CTkButton(
                 frame_topo, text="➕ Nova Bolsa", font=("Segoe UI", 13, "bold"),
@@ -129,7 +122,6 @@ class BolsasPage(ctk.CTkFrame):
         self.combo_tipo.pack(side="left", padx=(0, 15))
         self.combo_tipo.set("Todos")
 
-        # Filtro de Estado visível APENAS para Admin (Estudante só vê bolsas Ativas)
         if self.role != "estudante":
             ctk.CTkLabel(filtros2, text="Estado:", font=("Segoe UI", 11, "bold")).pack(side="left", padx=(0, 5))
             self.combo_estado = ctk.CTkComboBox(
@@ -164,7 +156,6 @@ class BolsasPage(ctk.CTkFrame):
         self.atualizar_tabela()
 
     def limpar_filtros(self):
-        """Limpa todos os filtros"""
         self.entry_pesquisa.delete(0, "end")
         self.combo_tipo.set("Todos")
         if self.role != "estudante":
@@ -175,7 +166,6 @@ class BolsasPage(ctk.CTkFrame):
         self.atualizar_tabela()
 
     def aplicar_ordenacao(self, coluna_idx):
-        """Alterna ordenação por coluna"""
         colunas_ord = ["id", "nome", "tipo", "valor", "estado"]
         if coluna_idx >= len(colunas_ord):
             return
@@ -193,7 +183,6 @@ class BolsasPage(ctk.CTkFrame):
         for widget in self.tabela_container.winfo_children():
             widget.destroy()
 
-        # Headers dinâmicos com base no role (Estudante não precisa da coluna 'Estado' nem 'Ações' administrativas)
         if self.role == "estudante":
             colunas = ["ID", "Nome", "Tipo", "Valor", "Média Mín.", "Ações"]
         else:
@@ -218,7 +207,6 @@ class BolsasPage(ctk.CTkFrame):
             )
             btn_header.grid(row=0, column=i, padx=15, pady=15, sticky="ew")
 
-        # Filtros internos
         termo = self.entry_pesquisa.get().strip().lower()
         tipo_selecionado = self.combo_tipo.get()
         estado_selecionado = "Ativo" if self.role == "estudante" else self.combo_estado.get()
@@ -240,7 +228,6 @@ class BolsasPage(ctk.CTkFrame):
             if corresponde_termo and corresponde_tipo and corresponde_estado and corresponde_valor:
                 bolsas_filtradas.append(bolsa)
 
-        # Ordenação
         if self.coluna_ordenada:
             colunas_ord = ["id", "nome", "tipo", "valor", "estado" if self.role != "estudante" else "media_minima"]
             if self.coluna_ordenada in colunas_ord:
@@ -262,12 +249,9 @@ class BolsasPage(ctk.CTkFrame):
             ctk.CTkLabel(self.tabela_container, text=str(tipo or "N/A"), font=("Segoe UI", 13)).grid(row=row_idx, column=2, padx=15, pady=10, sticky="w")
             ctk.CTkLabel(self.tabela_container, text=f"{valor:,.0f}$", font=("Segoe UI", 13, "bold")).grid(row=row_idx, column=3, padx=15, pady=10, sticky="w")
 
-            # Coluna 4 & 5 mudam dependendo do perfil
             if self.role == "estudante":
-                # Mostra a Média Mínima exigida em vez do Estado
                 ctk.CTkLabel(self.tabela_container, text=f"{media_min:.1f} val.", font=("Segoe UI", 13)).grid(row=row_idx, column=4, padx=15, pady=10, sticky="w")
                 
-                # Ação para o estudante: Botão "Candidatar"
                 frame_acoes = ctk.CTkFrame(self.tabela_container, fg_color="transparent")
                 frame_acoes.grid(row=row_idx, column=5, padx=15, pady=10, sticky="w")
                 
@@ -277,7 +261,6 @@ class BolsasPage(ctk.CTkFrame):
                     font=("Segoe UI", 11, "bold"), command=lambda b=bolsa: self.candidatar_bolsa(b)
                 ).pack(side="left", padx=4)
             else:
-                # Layout Admin original
                 cor_estado = "#10B981" if estado == "Ativo" else "#EF4444"
                 ctk.CTkLabel(self.tabela_container, text=estado, font=("Segoe UI", 13, "bold"), text_color=cor_estado).grid(row=row_idx, column=4, padx=15, pady=10, sticky="w")
 
@@ -296,9 +279,71 @@ class BolsasPage(ctk.CTkFrame):
                     font=("Segoe UI", 11), command=lambda id_b=id_b: self.eliminar_bolsa(id_b)
                 ).pack(side="left", padx=4)
 
+    # =========================================================================
+    # RESOLUÇÃO DO ERRO DE VÍNCULO AQUI
+    # =========================================================================
     def candidatar_bolsa(self, bolsa):
         """Ação executada quando um estudante clica em Candidatar"""
-        id_b, nome, *rest = bolsa
-        messagebox.showinfo("Candidatura", f"Iniciando processo de candidatura para:\n👉 {nome}\n(Implemente a sua lógica de submissão aqui)")
+        id_b, nome_bolsa, *rest = bolsa
+        
+        if not messagebox.askyesno("Confirmar Candidatura", f"Deseja submeter a sua candidatura para a bolsa:\n👉 {nome_bolsa}?"):
+            return
 
-    # (Os métodos abrir_formulario, validar_campo_decimal, salvar_bolsa e eliminar_bolsa permanecem iguais)
+        try:
+            conn = conectar()
+            cursor = conn.cursor()
+            
+            # 1. Procurar o email em minúsculas (LOWER) baseado no ID de sessão recebido
+            cursor.execute("SELECT LOWER(email) FROM utilizadores WHERE id = ?", (self.id_estudante,))
+            user_res = cursor.fetchone()
+            
+            if not user_res or not user_res[0]:
+                messagebox.showerror("Erro", "Utilizador autenticado não foi localizado no sistema.")
+                conn.close()
+                return
+                
+            user_email = user_res[0]
+            
+            # 2. Procurar na tabela estudantes de forma insensível a maiúsculas/minúsculas
+            cursor.execute("SELECT id FROM estudantes WHERE LOWER(email) = ?", (user_email,))
+            estudante_res = cursor.fetchone()
+            
+            if not estudante_res:
+                messagebox.showerror(
+                    "Erro de Vínculo", 
+                    f"Perfil de estudante não associado ao utilizador.\n\n"
+                    f"Email procurado: {user_email}\n"
+                    f"Certifique-se de que este perfil foi criado na tabela 'estudantes'."
+                )
+                conn.close()
+                return
+                
+            id_estudante_real = estudante_res[0]
+
+            # 3. Validar duplicados
+            cursor.execute("""
+                SELECT id FROM candidaturas 
+                WHERE estudante_id = ? AND bolsa_id = ?
+            """, (id_estudante_real, id_b))
+            
+            if cursor.fetchone():
+                messagebox.showwarning("Aviso", f"Já possui uma candidatura submetida para a bolsa: {nome_bolsa}.")
+                conn.close()
+                return
+
+            # 4. Inserir a nova candidatura
+            from datetime import datetime
+            data_atual = datetime.now().strftime("%Y-%m-%d")
+            
+            cursor.execute("""
+                INSERT INTO candidaturas (estudante_id, bolsa_id, data_candidatura, estado, observacoes)
+                VALUES (?, ?, ?, ?, ?)
+            """, (id_estudante_real, id_b, data_atual, "Pendente", "Submetido via Painel do Estudante"))
+            
+            conn.commit()
+            conn.close()
+            
+            messagebox.showinfo("Sucesso", f"Candidatura à '{nome_bolsa}' submetida com sucesso!\nAguarde a validação do sistema inteligente.")
+            
+        except Exception as e:
+            messagebox.showerror("Erro", f"Falha ao processar candidatura: {e}")

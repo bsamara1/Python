@@ -106,7 +106,7 @@ class CriarConta:
         self.card = ctk.CTkFrame(
             self.main,
             width=580,
-            height=760,
+            height=860,
             fg_color="white",
             corner_radius=20,
             border_width=1,

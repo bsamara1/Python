@@ -9,7 +9,7 @@ import string
 from datetime import datetime, timedelta
 from database.database import DATABASE, conectar
 from interface.admin.dashboard import App as DashboardAdmin
-from interface.estudantes.dashboard1 import App as DashboardEstudante
+from interface.estudantes.dashboard1 import DashboardEstudante as DashboardEstudante
 import json
 
 base_dir = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
@@ -480,17 +480,19 @@ class Login:
         self.btn_entrar.configure(state="disabled", text="A processar...")
         self.root.update()
 
-        email = self.email.get().strip()
+        # Normalizar o email para minúsculas para evitar falhas de digitação
+        email = self.email.get().strip().lower()
         senha = self.senha.get().strip()
 
         try:
             conn = conectar()
             cursor = conn.cursor()
 
+            # Usamos LOWER(email) na query para garantir correspondência total e segura
             cursor.execute("""
                 SELECT id, nome, email, perfil, telefone
                 FROM utilizadores
-                WHERE email = ? AND senha = ?
+                WHERE LOWER(email) = ? AND senha = ?
             """, (email, senha))
 
             utilizador = cursor.fetchone()
@@ -520,6 +522,7 @@ class Login:
                     dashboard.protocol("WM_DELETE_WINDOW", lambda: [dashboard.destroy(), self.root.destroy()])
                     dashboard.mainloop()
                 elif perfil == "Estudante":
+                    # Passa dinamicamente o ID real detetado na sessão para o Dashboard do estudante
                     dashboard = DashboardEstudante(parent=self.root, id_utilizador_logado=id_utilizador)
                     dashboard.protocol("WM_DELETE_WINDOW", lambda: [dashboard.destroy(), self.root.destroy()])
                     dashboard.mainloop()
@@ -536,9 +539,13 @@ class Login:
 
         finally:
             self.login_em_andamento = False
-            self.btn_entrar.configure(state="normal", text="Entrar")
-            self.root.update()
-
+            # CORREÇÃO CRÍTICA: Só tenta alterar o botão se ele e a janela ainda existirem fisicamente
+            try:
+                if self.root.winfo_exists() and self.btn_entrar.winfo_exists():
+                    self.btn_entrar.configure(state="normal", text="Entrar")
+                    self.root.update()
+            except Exception:
+                pass # Se já tiver sido destruído pelo encerramento da aplicação, ignora em silêncio
 if __name__ == "__main__":
     from database.database import criar_base
     criar_base()

@@ -21,7 +21,6 @@ def criar_base():
 
     # ==========================================================
     # TABELA UTILIZADORES (Autenticação)
-    # CORREÇÃO: 'telefone' agora aceita NULL para evitar erros no registo inicial
     # ==========================================================
     cursor.execute("""
     CREATE TABLE IF NOT EXISTS utilizadores (
@@ -42,7 +41,7 @@ def criar_base():
     CREATE TABLE IF NOT EXISTS estudantes (
         id INTEGER PRIMARY KEY AUTOINCREMENT,
         nome TEXT,
-        email TEXT,
+        email TEXT UNIQUE,
         telefone TEXT,
         universidade TEXT,
         curso TEXT,
@@ -80,14 +79,12 @@ def criar_base():
         rendimento_maximo REAL DEFAULT 999999.0
     )
     """)
-    # No final da função criar_base(), mude a lógica para:
 
     # Verifica se já existem bolsas cadastradas
     cursor.execute("SELECT COUNT(*) FROM bolsas")
     se_vazio = cursor.fetchone()[0] == 0
 
     if se_vazio:
-        # Se a tabela estiver limpa, insere os exemplos
         cursor.execute("""
         INSERT INTO bolsas (nome, tipo, valor, estado, media_minima, rendimento_maximo)
         VALUES ('Bolsa de Mérito', 'Mérito', 5000, 'Ativo', 15.0, 999999)
@@ -184,23 +181,11 @@ def criar_base():
     INSERT OR IGNORE INTO utilizadores (nome, email, senha, perfil, data_criacao)
     VALUES ('Estudante Exemplo', 'estudante@sibes.com', '1234', 'Estudante', DATE('now'))
     """)
-
-    # ==================================================
-    # BOLSAS DE EXEMPLO (Com novos campos)
-    # ==================================================
+    
+    # IMPORTANTE: Garante que o estudante padrão também existe na tabela de estudantes para testes locais
     cursor.execute("""
-    INSERT OR IGNORE INTO bolsas (nome, tipo, valor, estado, media_minima, rendimento_maximo)
-    VALUES ('Bolsa de Mérito', 'Mérito', 5000, 'Ativo', 15.0, 999999)
-    """)
-
-    cursor.execute("""
-    INSERT OR IGNORE INTO bolsas (nome, tipo, valor, estado, media_minima, rendimento_maximo)
-    VALUES ('Bolsa Social', 'Social', 3000, 'Ativo', 10.0, 35000)
-    """)
-
-    cursor.execute("""
-    INSERT OR IGNORE INTO bolsas (nome, tipo, valor, estado, media_minima, rendimento_maximo)
-    VALUES ('Bolsa de Estudo Integral', 'Integral', 8000, 'Ativo', 16.0, 45000)
+    INSERT OR IGNORE INTO estudantes (nome, email, universidade, curso, ano, media, rendimento, data_registo, data_criacao)
+    VALUES ('Estudante Exemplo', 'estudante@sibes.com', 'Universidade Aberta', 'Informática', 2, 16.5, 18000.0, DATE('now'), DATE('now'))
     """)
 
     conn.commit()
@@ -212,7 +197,7 @@ def registar_novo_estudante(nome, email, senha, telefone="", universidade="", cu
     cursor = conn.cursor()
 
     try:
-        # 1. Inserir na tabela de utilizadores (agora passando também a variável telefone)
+        # 1. Inserir na tabela de utilizadores
         cursor.execute("""
             INSERT INTO utilizadores (nome, email, senha, perfil, telefone, data_criacao)
             VALUES (?, ?, ?, 'Estudante', ?, DATE('now'))
@@ -227,7 +212,6 @@ def registar_novo_estudante(nome, email, senha, telefone="", universidade="", cu
         conn.commit()
         return True
     except sqlite3.IntegrityError as e:
-        # Mostra o erro real no terminal para debug
         print(f"Erro de integridade no SQLite: {e}")
         return False
     except sqlite3.Error as e:
