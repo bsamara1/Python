@@ -21,8 +21,26 @@ class Candidaturas(ctk.CTkFrame):
     def obter_caminho_db(self):
         if getattr(sys, 'frozen', False):
             base_dir = os.path.dirname(sys.executable)
-        else:
-            base_dir = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+            return os.path.join(base_dir, 'database', 'sibes.db')
+
+        # Sobe a partir deste ficheiro até encontrar a pasta 'database'
+        # (evita depender de um número fixo de níveis, que estava incorreto
+        # e apontava para 'interface/database/sibes.db', inexistente)
+        diretorio_atual = os.path.dirname(os.path.abspath(__file__))
+        possiveis_raizes = [
+            os.path.abspath(os.path.join(diretorio_atual, "..")),
+            os.path.abspath(os.path.join(diretorio_atual, "..", "..")),
+            os.path.abspath(os.path.join(diretorio_atual, "..", "..", "..")),
+            diretorio_atual,
+        ]
+
+        for raiz in possiveis_raizes:
+            caminho_candidato = os.path.join(raiz, 'database', 'sibes.db')
+            if os.path.exists(caminho_candidato):
+                return caminho_candidato
+
+        # Fallback: caminho esperado a partir da raiz do projeto (2 níveis acima)
+        base_dir = os.path.abspath(os.path.join(diretorio_atual, "..", ".."))
         return os.path.join(base_dir, 'database', 'sibes.db')
 
     def carregar_candidaturas(self):
