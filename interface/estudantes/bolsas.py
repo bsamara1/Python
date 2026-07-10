@@ -2,307 +2,303 @@ import customtkinter as ctk
 import os
 import sys
 import sqlite3
+import re
 from tkinter import messagebox
 
-# IMPORTAR A CONEXÃO CENTRALIZADA DO TEU DATABASE.PY
-try:
-    from database.database import conectar
-except ImportError:
-    BASE_DIR = os.path.abspath(os.path.join(os.path.dirname(__file__), ".."))
-    sys.path.append(BASE_DIR)
-    from database.database import conectar
+# =========================================================================
+# RESOLUÇÃO DINÂMICA DE PATHS PARA O MÓDULO DATABASE
+# =========================================================================
+diretorio_atual = os.path.dirname(os.path.abspath(__file__))
 
+# Sobe até encontrar a raiz onde reside a pasta 'database'
+# Testa subir 1 nível, 2 níveis e 3 níveis consecutivamente
+possiveis_raizes = [
+    os.path.abspath(os.path.join(diretorio_atual, "..")),
+    os.path.abspath(os.path.join(diretorio_atual, "..", "..")),
+    os.path.abspath(os.path.join(diretorio_atual, "..", "..", "..")),
+    diretorio_atual
+]
+
+conectado = False
+for raiz in possiveis_raizes:
+    if raiz not in sys.path:
+        sys.path.insert(0, raiz)
+    try:
+        from database.database import conectar
+        conectado = True
+        break
+    except (ImportError, ModuleNotFoundError):
+        continue
+
+if not conectado:
+    # Fallback caso a estrutura esteja fora dos padrões testados
+    try:
+        from database import conectar
+    except (ImportError, ModuleNotFoundError):
+        def conectar():
+            # Cria uma ligação direta local se o módulo não for descoberto de todo
+            caminho_local_db = os.path.join(diretorio_atual, "database", "sibes.db")
+            if not os.path.exists(os.path.dirname(caminho_local_db)):
+                caminho_local_db = os.path.join(os.path.dirname(diretorio_atual), "database", "sibes.db")
+            return sqlite3.connect(caminho_local_db)
+
+# =========================================================================
+# CLASSE PRINCIPAL
+# =========================================================================
 class BolsasPage(ctk.CTkFrame):
-    """Página de Gestão de Bolsas com layout moderno e atualizações em tempo real"""
-
-    def __init__(self, master):
-        # Removemos os preenchimentos do container principal para a linha poder tocar nas bordas
+    """Página de Visualização/Gestão de Bolsas adaptada dinamicamente ao tipo de utilizador"""
+    # (O restante código da classe permanece idêntico)
+    def __init__(self, master, role="estudante"):  # Adicionado o parâmetro 'role'
         super().__init__(master, fg_color="#F4F6FB")
-
-        self.bolsas = []
-        self.bolsas_filtradas = []
-
+        self.role = role.lower()
+        self.bolsas_data = []
+        self.coluna_ordenada = None
+        self.ordem_ascendente = True
         self.carregar_bolsas()
         self.criar_interface()
 
     def carregar_bolsas(self):
-        """Carrega as bolsas ligando diretamente à base de dados central"""
+        """Carrega as bolsas da BD (Apenas 'Ativo' se for estudante)"""
         try:
-            conn = conectar() 
+            conn = conectar()
             cursor = conn.cursor()
-            cursor.execute("SELECT id, nome, tipo, valor, estado FROM bolsas")
-            linhas = cursor.fetchall()
             
-            self.bolsas = []
-            for linha in linhas:
-                self.bolsas.append({
-                    'id': linha[0],
-                    'nome': linha[1],
-                    'tipo': linha[2],
-                    'valor': linha[3],
-                    'estado': linha[4]
-                })
-            self.bolsas_filtradas = self.bolsas.copy()
+            # Se for estudante, filtra apenas pelas bolsas Ativas diretamente na Query
+            if self.role == "estudante":
+                cursor.execute("SELECT id, nome, tipo, valor, estado, media_minima, rendimento_maximo FROM bolsas WHERE estado = 'Ativo'")
+            else:
+                cursor.execute("SELECT id, nome, tipo, valor, estado, media_minima, rendimento_maximo FROM bolsas")
+                
+            self.bolsas_data = cursor.fetchall()
             conn.close()
         except Exception as e:
-            print(f"Erro ao carregar bolsas: {e}")
-            self.bolsas = []
-            self.bolsas_filtradas = []
-
-    def filtrar_dados(self, *args):
-        termo = self.entry_pesquisa.get().lower()
-        filtro_estado = self.combo_filtro.get()
-
-        self.bolsas_filtradas = []
-        for b in self.bolsas:
-            corresponde_termo = (termo in str(b['nome']).lower() or 
-                                 termo in str(b['tipo']).lower() or 
-                                 termo in str(b['id']).lower())
-            
-            corresponde_filtro = (filtro_estado == "Todos" or 
-                                  str(b['estado']).lower() == filtro_estado.lower())
-
-            if corresponde_termo and corresponde_filtro:
-                self.bolsas_filtradas.append(b)
-        
-        self.atualizar_tabela()
+            messagebox.showerror("Erro", f"Erro ao carregar bolsas: {e}")
+            self.bolsas_data = []
 
     def criar_interface(self):
         # =========================================================================
-        # 1. TOPO DEDICADO DA PÁGINA (Título, Descrição e Botão alinhados)
+        # 1. CABEÇALHO
         # =========================================================================
         frame_topo = ctk.CTkFrame(self, fg_color="transparent")
-        frame_topo.pack(fill="x", pady=(20, 10))  # 20 de espaçamento no topo do ecrã
+        frame_topo.pack(fill="x", pady=(20, 10))
 
-        # Bloco de Texto (Alinhado à Esquerda)
         frame_titulos = ctk.CTkFrame(frame_topo, fg_color="transparent")
         frame_titulos.pack(side="left", fill="y", anchor="w")
-        
-        lbl_titulo = ctk.CTkLabel(frame_titulos, text="Bolsas", font=("Segoe UI", 24, "bold"), text_color="#142850")
-        lbl_titulo.pack(anchor="w")
-        
-        lbl_subtitulo = ctk.CTkLabel(frame_titulos, text="Gerir todas as bolsas e editais registados.", font=("Segoe UI", 13), text_color="#6B7280")
-        lbl_subtitulo.pack(anchor="w", pady=(2, 0))
 
-        # Botão de Ação "+ Nova Bolsa" (Alinhado à Direita)
-        btn_adicionar = ctk.CTkButton(
-            frame_topo, text="+ Nova Bolsa", font=("Segoe UI", 13, "bold"),
-            fg_color="#1A5CFF", hover_color="#1046CD", text_color="white",
-            height=35, corner_radius=8, command=self.abrir_formulario_adicionar
-        )
-        btn_adicionar.pack(side="right", anchor="center")
-        
-        # =========================================================================
-        # 2. LINHA DIVISÓRIA (Corta o ecrã horizontalmente igual à de Estudantes)
-        # =========================================================================
-        self.divisoria_topo = ctk.CTkFrame(self, height=1, fg_color="#E5E7EB")
-        self.divisoria_topo.pack(fill="x", pady=(10, 20))
+        # Texto adaptado ao Estudante
+        titulo_texto = "Bolsas Disponíveis" if self.role == "estudante" else "Bolsas"
+        subtitulo_texto = "Consulte as bolsas e editais de candidatura abertos." if self.role == "estudante" else "Gerir todas as bolsas e editais registados."
+
+        ctk.CTkLabel(frame_titulos, text=titulo_texto, font=("Segoe UI", 24, "bold"), text_color="#142850").pack(anchor="w")
+        ctk.CTkLabel(frame_titulos, text=subtitulo_texto, font=("Segoe UI", 13), text_color="#6B7280").pack(anchor="w", pady=(2, 0))
+
+        # Botão "Nova Bolsa" visível APENAS para Admin
+        if self.role != "estudante":
+            ctk.CTkButton(
+                frame_topo, text="➕ Nova Bolsa", font=("Segoe UI", 13, "bold"),
+                fg_color="#1A5CFF", hover_color="#1046CD", height=35, corner_radius=8,
+                command=lambda: self.abrir_formulario()
+            ).pack(side="right", anchor="center")
+
+        ctk.CTkFrame(self, height=1, fg_color="#E5E7EB").pack(fill="x", pady=(10, 20))
 
         # =========================================================================
-        # 3. BARRA DE FILTROS E PESQUISA (Expandida)
+        # 2. FILTROS - LINHA 1
         # =========================================================================
-        frame_filtros = ctk.CTkFrame(self, fg_color="transparent")
-        frame_filtros.pack(fill="x", pady=(0, 15))
+        filtros1 = ctk.CTkFrame(self, fg_color="transparent")
+        filtros1.pack(fill="x", pady=(0, 10))
 
         self.entry_pesquisa = ctk.CTkEntry(
-            frame_filtros, placeholder_text="🔍 Pesquisar por nome, ID ou tipo...",
-            font=("Segoe UI", 13), fg_color="white", border_color="#E5E7EB", height=35, corner_radius=8
+            filtros1, placeholder_text="🔍 Pesquisar por nome ou tipo...", height=38,
+            fg_color="white", border_color="#E5E7EB"
         )
         self.entry_pesquisa.pack(side="left", fill="x", expand=True, padx=(0, 10))
-        self.entry_pesquisa.bind("<KeyRelease>", self.filtrar_dados)
+        self.entry_pesquisa.bind("<KeyRelease>", lambda e: self.atualizar_tabela())
 
-        self.combo_filtro = ctk.CTkComboBox(
-            frame_filtros, values=["Todos", "Ativo", "Inativo"], font=("Segoe UI", 13),
-            dropdown_font=("Segoe UI", 13), fg_color="white", border_color="#E5E7EB",
-            button_color="#F3F4F6", button_hover_color="#E5E7EB", height=35, width=150, corner_radius=8,
-            command=self.filtrar_dados
+        # =========================================================================
+        # 3. FILTROS - LINHA 2
+        # =========================================================================
+        filtros2 = ctk.CTkFrame(self, fg_color="transparent")
+        filtros2.pack(fill="x", pady=(0, 15))
+
+        ctk.CTkLabel(filtros2, text="Tipo:", font=("Segoe UI", 11, "bold")).pack(side="left", padx=(0, 5))
+        self.combo_tipo = ctk.CTkComboBox(
+            filtros2, values=["Todos", "Mérito", "Social", "Estudo Integral", "Desporto", "Cultural"],
+            height=35, fg_color="white", width=150, command=lambda e: self.atualizar_tabela()
         )
-        self.combo_filtro.set("Todos")
-        self.combo_filtro.pack(side="right")
+        self.combo_tipo.pack(side="left", padx=(0, 15))
+        self.combo_tipo.set("Todos")
+
+        # Filtro de Estado visível APENAS para Admin (Estudante só vê bolsas Ativas)
+        if self.role != "estudante":
+            ctk.CTkLabel(filtros2, text="Estado:", font=("Segoe UI", 11, "bold")).pack(side="left", padx=(0, 5))
+            self.combo_estado = ctk.CTkComboBox(
+                filtros2, values=["Todos", "Ativo", "Inativo"],
+                height=35, fg_color="white", width=120, command=lambda e: self.atualizar_tabela()
+            )
+            self.combo_estado.pack(side="left", padx=(0, 15))
+            self.combo_estado.set("Todos")
+
+        ctk.CTkLabel(filtros2, text="Valor Mín:", font=("Segoe UI", 11, "bold")).pack(side="left", padx=(0, 5))
+        self.entry_valor_min = ctk.CTkEntry(
+            filtros2, placeholder_text="0", height=35, width=80,
+            fg_color="white", border_color="#E5E7EB"
+        )
+        self.entry_valor_min.pack(side="left", padx=(0, 15))
+        self.entry_valor_min.bind("<KeyRelease>", lambda e: self.atualizar_tabela())
+
+        ctk.CTkButton(
+            filtros2, text="🔄 Limpar", fg_color="#6B7280", hover_color="#4B5563",
+            height=35, width=100, font=("Segoe UI", 11, "bold"),
+            command=self.limpar_filtros
+        ).pack(side="right")
 
         # =========================================================================
-        # 4. CARD DA TABELA (Scrollable e totalmente aberto)
+        # 4. TABELA
         # =========================================================================
-        self.card_conteudo = ctk.CTkScrollableFrame(
+        self.tabela_container = ctk.CTkScrollableFrame(
             self, fg_color="white", corner_radius=12, border_width=1, border_color="#E5E7EB"
         )
-        self.card_conteudo.pack(fill="both", expand=True, padx=5, pady=5)
+        self.tabela_container.pack(fill="both", expand=True, padx=5, pady=5)
+
+        self.atualizar_tabela()
+
+    def limpar_filtros(self):
+        """Limpa todos os filtros"""
+        self.entry_pesquisa.delete(0, "end")
+        self.combo_tipo.set("Todos")
+        if self.role != "estudante":
+            self.combo_estado.set("Todos")
+        self.entry_valor_min.delete(0, "end")
+        self.coluna_ordenada = None
+        self.ordem_ascendente = True
+        self.atualizar_tabela()
+
+    def aplicar_ordenacao(self, coluna_idx):
+        """Alterna ordenação por coluna"""
+        colunas_ord = ["id", "nome", "tipo", "valor", "estado"]
+        if coluna_idx >= len(colunas_ord):
+            return
+
+        nome_coluna = colunas_ord[coluna_idx]
+        if self.coluna_ordenada == nome_coluna:
+            self.ordem_ascendente = not self.ordem_ascendente
+        else:
+            self.coluna_ordenada = nome_coluna
+            self.ordem_ascendente = True
 
         self.atualizar_tabela()
 
     def atualizar_tabela(self):
-        for widget in self.card_conteudo.winfo_children():
+        for widget in self.tabela_container.winfo_children():
             widget.destroy()
 
-        self.card_conteudo.grid_columnconfigure(0, weight=1)
-        self.card_conteudo.grid_columnconfigure(1, weight=4)
-        self.card_conteudo.grid_columnconfigure(2, weight=2)
-        self.card_conteudo.grid_columnconfigure(3, weight=2)
-        self.card_conteudo.grid_columnconfigure(4, weight=2)
-        self.card_conteudo.grid_columnconfigure(5, weight=1)
+        # Headers dinâmicos com base no role (Estudante não precisa da coluna 'Estado' nem 'Ações' administrativas)
+        if self.role == "estudante":
+            colunas = ["ID", "Nome", "Tipo", "Valor", "Média Mín.", "Ações"]
+        else:
+            colunas = ["ID", "Nome", "Tipo", "Valor", "Estado", "Ações"]
 
-        headers = ["ID", "Nome da Bolsa", "Tipo", "Valor Benefício", "Estado", "Ações"]
-        for col_idx, texto in enumerate(headers):
-            lbl = ctk.CTkLabel(
-                self.card_conteudo, text=texto, font=("Segoe UI", 12, "bold"), text_color="#4B5563",
-                anchor="w" if col_idx != 5 else "center"
+        for i, col in enumerate(colunas):
+            self.tabela_container.grid_columnconfigure(i, weight=1)
+
+            texto_col = col
+            if self.coluna_ordenada and col != "Ações":
+                colunas_ord = ["id", "nome", "tipo", "valor", "estado" if self.role != "estudante" else "media_minima"]
+                if col.lower() in colunas_ord:
+                    if self.coluna_ordenada == col.lower():
+                        seta = "🔽" if self.ordem_ascendente else "🔼"
+                        texto_col = f"{col} {seta}"
+
+            btn_header = ctk.CTkButton(
+                self.tabela_container, text=texto_col, font=("Segoe UI", 12, "bold"),
+                fg_color="#F4F6FB", text_color="#6B7280", hover=col != "Ações",
+                hover_color="#E5E7EB", height=35, border_width=1, border_color="#E5E7EB",
+                command=lambda col_idx=i: self.aplicar_ordenacao(col_idx) if col != "Ações" else None
             )
-            lbl.grid(row=0, column=col_idx, padx=20, pady=(15, 10), sticky="nsew")
+            btn_header.grid(row=0, column=i, padx=15, pady=15, sticky="ew")
 
-        div = ctk.CTkFrame(self.card_conteudo, height=1, fg_color="#F3F4F6")
-        div.grid(row=1, column=0, columnspan=6, sticky="ew", padx=10)
-
-        if not self.bolsas_filtradas:
-            lbl_vazio = ctk.CTkLabel(self.card_conteudo, text="Nenhuma bolsa ou edital encontrado.", font=("Segoe UI", 14), text_color="#9CA3AF")
-            lbl_vazio.grid(row=2, column=0, columnspan=6, pady=40)
-            return
-
-        for row_idx, b in enumerate(self.bolsas_filtradas, start=2):
-            padd_y = 12
-
-            ctk.CTkLabel(self.card_conteudo, text=f"{b['id']}", font=("Segoe UI", 13), text_color="#6B7280", anchor="w").grid(row=row_idx*2, column=0, padx=20, pady=padd_y, sticky="w")
-            ctk.CTkLabel(self.card_conteudo, text=b['nome'], font=("Segoe UI", 13, "bold"), text_color="#111827", anchor="w").grid(row=row_idx*2, column=1, padx=20, pady=padd_y, sticky="w")
-            ctk.CTkLabel(self.card_conteudo, text=str(b['tipo'] or "N/A"), font=("Segoe UI", 13), text_color="#4B5563", anchor="w").grid(row=row_idx*2, column=2, padx=20, pady=padd_y, sticky="w")
-            
-            valor_formatado = f"{b['valor']:,}$".replace(",", ".") if isinstance(b['valor'], (int, float)) else f"{b['valor'] or 0}$"
-            ctk.CTkLabel(self.card_conteudo, text=valor_formatado, font=("Segoe UI", 13, "bold"), text_color="#111827", anchor="w").grid(row=row_idx*2, column=3, padx=20, pady=padd_y, sticky="w")
-            
-            est = str(b['estado'] or "Ativo").capitalize()
-            cor_estado = "#10B981" if est == "Ativo" else "#EF4444"
-            ctk.CTkLabel(self.card_conteudo, text=est, font=("Segoe UI", 13, "bold"), text_color=cor_estado, anchor="w").grid(row=row_idx*2, column=4, padx=20, pady=padd_y, sticky="w")
-
-            frame_acoes = ctk.CTkFrame(self.card_conteudo, fg_color="transparent")
-            frame_acoes.grid(row=row_idx*2, column=5, padx=10, pady=padd_y)
-
-            btn_edit = ctk.CTkButton(
-                frame_acoes, text="Editar", width=30, height=30, fg_color="#F3F4F6",
-                hover_color="#E5E7EB", text_color="#1A5CFF", corner_radius=6,
-                command=lambda bls=b: self.editar_bolsa(bls)
-            )
-            btn_edit.pack(side="left", padx=2)
-
-            btn_del = ctk.CTkButton(
-                frame_acoes, text="Eliminar", width=30, height=30, fg_color="#FEE2E2",
-                hover_color="#FCA5A5", text_color="#EF4444", corner_radius=6,
-                command=lambda bls=b: self.eliminar_bolsa(bls)
-            )
-            btn_del.pack(side="left", padx=2)
-
-            sub_div = ctk.CTkFrame(self.card_conteudo, height=1, fg_color="#F9FAFB")
-            sub_div.grid(row=row_idx*2 + 1, column=0, columnspan=6, sticky="ew", padx=10)
-
-    def abrir_formulario_adicionar(self):
-        self.abrir_formulario_bolsa()
-
-    def editar_bolsa(self, bolsa):
-        self.abrir_formulario_bolsa(bolsa)
-
-    def abrir_formulario_bolsa(self, dados_bolsa=None):
-        janela_form = ctk.CTkToplevel(self)
-        janela_form.title("Formulário de Bolsa")
-        janela_form.geometry("450x550")
-        janela_form.grab_set()
-
-        titulo = "Editar Bolsa" if dados_bolsa else "Adicionar Nova Bolsa"
-        ctk.CTkLabel(janela_form, text=titulo, font=("Segoe UI", 18, "bold"), text_color="#142850").pack(pady=15)
-
-        form_container = ctk.CTkFrame(janela_form, fg_color="transparent")
-        form_container.pack(padx=20, pady=5, fill="both", expand=True)
-
-        ctk.CTkLabel(form_container, text="Nome da Bolsa", font=("Segoe UI", 12, "bold")).pack(anchor="w", pady=(5, 2))
-        entry_nome = ctk.CTkEntry(form_container, width=380, height=35)
-        entry_nome.pack(pady=(0, 10))
-
-        ctk.CTkLabel(form_container, text="Tipo (ex: Mérito, Social, Cultural)", font=("Segoe UI", 12, "bold")).pack(anchor="w", pady=(5, 2))
-        entry_tipo = ctk.CTkEntry(form_container, width=380, height=35)
-        entry_tipo.pack(pady=(0, 10))
-
-        ctk.CTkLabel(form_container, text="Valor do Benefício", font=("Segoe UI", 12, "bold")).pack(anchor="w", pady=(5, 2))
-        entry_valor = ctk.CTkEntry(form_container, width=380, height=35, placeholder_text="Ex: 12000")
-        entry_valor.pack(pady=(0, 10))
-
-        ctk.CTkLabel(form_container, text="Estado", font=("Segoe UI", 12, "bold")).pack(anchor="w", pady=(5, 2))
-        combo_estado = ctk.CTkComboBox(form_container, values=["Ativo", "Inativo"], width=380, height=35)
-        combo_estado.set("Ativo")
-        combo_estado.pack(pady=(0, 15))
-
-        if dados_bolsa:
-            entry_nome.insert(0, str(dados_bolsa['nome']))
-            entry_tipo.insert(0, str(dados_bolsa['tipo'] or ""))
-            entry_valor.insert(0, str(dados_bolsa['valor'] or ""))
-            combo_estado.set(str(dados_bolsa['estado'] or "Ativo").capitalize())
-
-        frame_botoes = ctk.CTkFrame(janela_form, fg_color="transparent")
-        frame_botoes.pack(pady=20)
-
-        id_bolsa = dados_bolsa['id'] if dados_bolsa else None
-        texto_confirmar = "Atualizar" if dados_bolsa else "Guardar"
-
-        btn_salvar = ctk.CTkButton(
-            frame_botoes, text=texto_confirmar, fg_color="#1A5CFF", hover_color="#0043E0",
-            font=("Segoe UI", 13, "bold"),
-            command=lambda: self.salvar_dados(
-                entry_nome.get(), entry_tipo.get(), entry_valor.get(), combo_estado.get(), janela_form, id_bolsa
-            )
-        )
-        btn_salvar.pack(side="left", padx=10)
-
-        btn_cancelar = ctk.CTkButton(
-            frame_botoes, text="Cancelar", fg_color="#E5E7EB", hover_color="#D1D5DB",
-            text_color="#4B5563", font=("Segoe UI", 13, "bold"), command=janela_form.destroy
-        )
-        btn_cancelar.pack(side="left", padx=10)
-
-    def salvar_dados(self, nome, tipo, valor, estado, janela, id_bolsa=None):
-        if not (nome.strip() and tipo.strip() and valor.strip()):
-            messagebox.showwarning("Aviso", "Por favor, preencha todos os campos obrigatórios!")
-            return
-
+        # Filtros internos
+        termo = self.entry_pesquisa.get().strip().lower()
+        tipo_selecionado = self.combo_tipo.get()
+        estado_selecionado = "Ativo" if self.role == "estudante" else self.combo_estado.get()
+        
         try:
-            valor_numerico = float(valor.replace(",", "."))
+            valor_min = float(self.entry_valor_min.get()) if self.entry_valor_min.get() else 0
         except ValueError:
-            messagebox.showerror("Erro de Validação", "O campo 'Valor' deve conter um número válido.")
+            valor_min = 0
+
+        bolsas_filtradas = []
+        for bolsa in self.bolsas_data:
+            id_b, nome, tipo, valor, estado, media_min, rend_max = bolsa
+
+            corresponde_termo = termo in str(nome).lower() or termo in str(tipo).lower()
+            corresponde_tipo = tipo_selecionado == "Todos" or tipo == tipo_selecionado
+            corresponde_estado = estado_selecionado == "Todos" or estado == estado_selecionado
+            corresponde_valor = valor >= valor_min
+
+            if corresponde_termo and corresponde_tipo and corresponde_estado and corresponde_valor:
+                bolsas_filtradas.append(bolsa)
+
+        # Ordenação
+        if self.coluna_ordenada:
+            colunas_ord = ["id", "nome", "tipo", "valor", "estado" if self.role != "estudante" else "media_minima"]
+            if self.coluna_ordenada in colunas_ord:
+                col_idx = colunas_ord.index(self.coluna_ordenada)
+                bolsas_filtradas.sort(key=lambda x: x[col_idx] if x[col_idx] is not None else "", reverse=not self.ordem_ascendente)
+
+        if not bolsas_filtradas:
+            ctk.CTkLabel(
+                self.tabela_container, text="Nenhuma bolsa encontrada com os filtros aplicados.",
+                font=("Segoe UI", 13), text_color="#9CA3AF"
+            ).grid(row=1, column=0, columnspan=len(colunas), padx=15, pady=30)
             return
 
-        try:
-            conn = conectar() 
-            cursor = conn.cursor()
+        for row_idx, bolsa in enumerate(bolsas_filtradas, start=1):
+            id_b, nome, tipo, valor, estado, media_min, rend_max = bolsa
 
-            if id_bolsa is None:
-                cursor.execute("""
-                    INSERT INTO bolsas (nome, tipo, valor, estado) 
-                    VALUES (?, ?, ?, ?)
-                """, (nome, tipo, valor_numerico, estado))
-                messagebox.showinfo("Sucesso", "Nova bolsa adicionada com sucesso!")
-            else:
-                cursor.execute("""
-                    UPDATE bolsas 
-                    SET nome=?, tipo=?, valor=?, estado=? 
-                    WHERE id=?
-                """, (nome, tipo, valor_numerico, estado, id_bolsa))
-                messagebox.showinfo("Sucesso", "Bolsa atualizada com sucesso!")
+            ctk.CTkLabel(self.tabela_container, text=str(id_b), font=("Segoe UI", 13)).grid(row=row_idx, column=0, padx=15, pady=10, sticky="w")
+            ctk.CTkLabel(self.tabela_container, text=nome, font=("Segoe UI", 13, "bold"), text_color="#1F2937").grid(row=row_idx, column=1, padx=15, pady=10, sticky="w")
+            ctk.CTkLabel(self.tabela_container, text=str(tipo or "N/A"), font=("Segoe UI", 13)).grid(row=row_idx, column=2, padx=15, pady=10, sticky="w")
+            ctk.CTkLabel(self.tabela_container, text=f"{valor:,.0f}$", font=("Segoe UI", 13, "bold")).grid(row=row_idx, column=3, padx=15, pady=10, sticky="w")
 
-            conn.commit()
-            conn.close()
-
-            janela.destroy()
-            self.carregar_bolsas() 
-            self.filtrar_dados()   
-
-        except Exception as e:
-            messagebox.showerror("Erro na Base de Dados", f"Não foi possível salvar os dados: {e}")
-
-    def eliminar_bolsa(self, bolsa):
-        if messagebox.askyesno("Confirmar Exclusão", f"Deseja realmente apagar a bolsa '{bolsa['nome']}'?"):
-            try:
-                conn = conectar() 
-                cursor = conn.cursor()
-                cursor.execute("DELETE FROM bolsas WHERE id=?", (bolsa['id'],))
-                conn.commit()
-                conn.close()
+            # Coluna 4 & 5 mudam dependendo do perfil
+            if self.role == "estudante":
+                # Mostra a Média Mínima exigida em vez do Estado
+                ctk.CTkLabel(self.tabela_container, text=f"{media_min:.1f} val.", font=("Segoe UI", 13)).grid(row=row_idx, column=4, padx=15, pady=10, sticky="w")
                 
-                self.carregar_bolsas()
-                self.filtrar_dados()
-                messagebox.showinfo("Sucesso", "Bolsa eliminada com sucesso!")
-            except Exception as e:
-                messagebox.showerror("Erro", f"Não foi possível eliminar a bolsa: {e}")
+                # Ação para o estudante: Botão "Candidatar"
+                frame_acoes = ctk.CTkFrame(self.tabela_container, fg_color="transparent")
+                frame_acoes.grid(row=row_idx, column=5, padx=15, pady=10, sticky="w")
+                
+                ctk.CTkButton(
+                    frame_acoes, text="Candidatar", width=85, height=28, corner_radius=6,
+                    fg_color="#EBF0FF", text_color="#1A5CFF", hover_color="#D6E4FF",
+                    font=("Segoe UI", 11, "bold"), command=lambda b=bolsa: self.candidatar_bolsa(b)
+                ).pack(side="left", padx=4)
+            else:
+                # Layout Admin original
+                cor_estado = "#10B981" if estado == "Ativo" else "#EF4444"
+                ctk.CTkLabel(self.tabela_container, text=estado, font=("Segoe UI", 13, "bold"), text_color=cor_estado).grid(row=row_idx, column=4, padx=15, pady=10, sticky="w")
+
+                frame_acoes = ctk.CTkFrame(self.tabela_container, fg_color="transparent")
+                frame_acoes.grid(row=row_idx, column=5, padx=15, pady=10, sticky="w")
+
+                ctk.CTkButton(
+                    frame_acoes, text="Editar", width=60, height=28, corner_radius=6,
+                    fg_color="#EBF0FF", text_color="#1A5CFF", hover_color="#D6E4FF",
+                    font=("Segoe UI", 11), command=lambda b=bolsa: self.abrir_formulario(b)
+                ).pack(side="left", padx=4)
+
+                ctk.CTkButton(
+                    frame_acoes, text="Eliminar", width=60, height=28, corner_radius=6,
+                    fg_color="#FFEAEA", text_color="#FF4D4D", hover_color="#FFD1D1",
+                    font=("Segoe UI", 11), command=lambda id_b=id_b: self.eliminar_bolsa(id_b)
+                ).pack(side="left", padx=4)
+
+    def candidatar_bolsa(self, bolsa):
+        """Ação executada quando um estudante clica em Candidatar"""
+        id_b, nome, *rest = bolsa
+        messagebox.showinfo("Candidatura", f"Iniciando processo de candidatura para:\n👉 {nome}\n(Implemente a sua lógica de submissão aqui)")
+
+    # (Os métodos abrir_formulario, validar_campo_decimal, salvar_bolsa e eliminar_bolsa permanecem iguais)

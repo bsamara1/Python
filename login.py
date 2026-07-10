@@ -9,7 +9,7 @@ import string
 from datetime import datetime, timedelta
 from database.database import DATABASE, conectar
 from interface.admin.dashboard import App as DashboardAdmin
-from interface.estudantes.dashboard import App as DashboardEstudante
+from interface.estudantes.dashboard1 import App as DashboardEstudante
 import json
 
 base_dir = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
