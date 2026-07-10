@@ -46,30 +46,21 @@ class Login:
         if self.lembrar_ativo == 1 and self.email_guardado:
             self.email.insert(0, self.email_guardado)
             self.lembrar_var.set(1)
+            
+        # CORREÇÃO LOGOUT: Restaura o botão sempre que a janela de login voltar a aparecer (deiconify)
+        self.root.bind("<Map>", lambda e: self.restaurar_tela_login())
 
     def criar_interface(self):
-        # ==================================================
-        # CONTAINER PRINCIPAL
-        # ==================================================
         self.main = ctk.CTkFrame(self.root, fg_color="#F5F7FB")
         self.main.pack(fill="both", expand=True)
 
-        # ==================================================
-        # SIDEBAR
-        # ==================================================
         self.sidebar = ctk.CTkFrame(self.main, width=120, fg_color="#081A3C", corner_radius=0)
         self.sidebar.pack(side="left", fill="y")
         self.sidebar.pack_propagate(False)
 
-        # ==================================================
-        # ÁREA ESQUERDA
-        # ==================================================
         self.left_area = ctk.CTkFrame(self.main, fg_color="#F5F7FB")
         self.left_area.pack(side="left", fill="both", expand=True)
 
-        # ==================================================
-        # LOGO + SIBES
-        # ==================================================
         logo_frame = ctk.CTkFrame(self.left_area, fg_color="transparent")
         logo_frame.place(x=90, y=130)
 
@@ -87,9 +78,6 @@ class Login:
             text_color="#081A3C"
         ).pack(side="left", padx=(30, 0))
 
-        # ==================================================
-        # SUBTÍTULO
-        # ==================================================
         ctk.CTkLabel(
             self.left_area,
             text="Sistema Inteligente de\nBolsas de Estudo Sustentáveis",
@@ -98,9 +86,6 @@ class Login:
             justify="center"
         ).place(x=230, y=300)
 
-        # ==================================================
-        # IMAGEM PRINCIPAL
-        # ==================================================
         try:
             img = Image.open("assets/img1.png")
             self.main_img = ctk.CTkImage(light_image=img, dark_image=img, size=(800, 550))
@@ -108,9 +93,6 @@ class Login:
         except:
             pass
 
-        # ==================================================
-        # CARD LOGIN
-        # ==================================================
         self.card = ctk.CTkFrame(
             self.main,
             width=580,
@@ -123,9 +105,6 @@ class Login:
         self.card.place(relx=0.74, rely=0.5, anchor="center")
         self.card.pack_propagate(False)
 
-        # ==================================================
-        # TÍTULOS DO CARD
-        # ==================================================
         ctk.CTkLabel(
             self.card,
             text="Bem-vindo de volta!",
@@ -140,15 +119,7 @@ class Login:
             text_color="#6B7280"
         ).pack(pady=(0, 40))
 
-        # ==================================================
-        # CAMPO EMAIL
-        # ==================================================
-        ctk.CTkLabel(
-            self.card,
-            text="Email",
-            font=("Segoe UI", 14, "bold"),
-            text_color="#081A3C"
-        ).pack(anchor="w", padx=65)
+        ctk.CTkLabel(self.card, text="Email", font=("Segoe UI", 14, "bold"), text_color="#081A3C").pack(anchor="w", padx=65)
 
         self.email = ctk.CTkEntry(
             self.card,
@@ -161,37 +132,23 @@ class Login:
         self.email.pack(pady=(8, 2))
         self.email.bind("<KeyRelease>", lambda e: self.limpar_erro_email())
 
-        self.label_erro_email = ctk.CTkLabel(
-            self.card,
-            text="",
-            font=("Segoe UI", 11),
-            text_color="#EF4444"
-        )
+        self.label_erro_email = ctk.CTkLabel(self.card, text="", font=("Segoe UI", 11), text_color="#EF4444")
         self.label_erro_email.pack(anchor="w", padx=65, pady=(0, 15))
 
-        # ==================================================
-        # CAMPO SENHA
-        # ==================================================
+        # ====================================================================
+        # NOVO: FRAME PARA LABEL + BOTÃO MOSTRAR JUNTOS NA MESMA LINHA
+        # ====================================================================
         label_senha_frame = ctk.CTkFrame(self.card, fg_color="transparent")
-        label_senha_frame.pack(anchor="w", padx=65, pady=(15, 0))
+        label_senha_frame.pack(anchor="w", padx=65, pady=(15, 0), fill="x")
 
         ctk.CTkLabel(
-            label_senha_frame,
-            text="Palavra-passe",
-            font=("Segoe UI", 14, "bold"),
+            label_senha_frame, 
+            text="Palavra-passe", 
+            font=("Segoe UI", 14, "bold"), 
             text_color="#081A3C"
         ).pack(side="left")
 
-        self.btn_mostrar_senha = ctk.CTkButton(
-            label_senha_frame,
-            text="Mostrar",
-            fg_color="transparent",
-            hover=False,
-            text_color="#2563EB",
-            font=("Segoe UI", 11),
-            command=self.alternar_visibilidade_senha
-        )
-        self.btn_mostrar_senha.pack(side="right")
+        
 
         self.senha = ctk.CTkEntry(
             self.card,
@@ -205,28 +162,15 @@ class Login:
         self.senha.pack(pady=(8, 2))
         self.senha.bind("<KeyRelease>", lambda e: self.limpar_erro_senha())
 
-        self.label_erro_senha = ctk.CTkLabel(
-            self.card,
-            text="",
-            font=("Segoe UI", 11),
-            text_color="#EF4444"
-        )
+        self.label_erro_senha = ctk.CTkLabel(self.card, text="", font=("Segoe UI", 11), text_color="#EF4444")
         self.label_erro_senha.pack(anchor="w", padx=65, pady=(0, 15))
 
-        # ==================================================
-        # OPÇÕES ADICIONAIS
-        # ==================================================
         opcoes = ctk.CTkFrame(self.card, fg_color="transparent")
         opcoes.pack(fill="x", padx=65)
 
         self.lembrar_var = ctk.IntVar()
 
-        ctk.CTkCheckBox(
-            opcoes,
-            text="Lembrar-me",
-            text_color="#081A3C",
-            variable=self.lembrar_var
-        ).pack(side="left")
+        ctk.CTkCheckBox(opcoes, text="Lembrar-me", text_color="#081A3C", variable=self.lembrar_var).pack(side="left")
 
         ctk.CTkButton(
             opcoes,
@@ -237,9 +181,6 @@ class Login:
             command=self.esqueceu_senha
         ).pack(side="right")
 
-        # ==================================================
-        # BOTÃO ENTRAR
-        # ==================================================
         self.btn_entrar = ctk.CTkButton(
             self.card,
             text="Entrar",
@@ -251,18 +192,10 @@ class Login:
         )
         self.btn_entrar.pack(pady=(35, 25))
 
-        # ==================================================
-        # RODAPÉ (REGISTO DE CONTA)
-        # ==================================================
         rodape = ctk.CTkFrame(self.card, fg_color="transparent")
         rodape.pack()
 
-        ctk.CTkLabel(
-            rodape,
-            text="Não tem conta?",
-            font=("Segoe UI", 14),
-            text_color="#6B7280"
-        ).pack(side="left")
+        ctk.CTkLabel(rodape, text="Não tem conta?", font=("Segoe UI", 14), text_color="#6B7280").pack(side="left")
 
         ctk.CTkButton(
             rodape,
@@ -274,32 +207,34 @@ class Login:
             command=self.criar_conta
         ).pack(side="left")
 
-    # ==================================================
-    # FUNÇÕES DE VALIDAÇÃO
-    # ==================================================
+    def restaurar_tela_login(self):
+        """ Destrava o loop do login e limpa os botões ao fazer logout """
+        self.login_em_andamento = False
+        try:
+            if self.root.winfo_exists() and self.btn_entrar.winfo_exists():
+                self.btn_entrar.configure(state="normal", text="Entrar")
+                self.senha.delete(0, 'end')
+                self.root.update()
+        except:
+            pass
 
     def validar_email(self, email):
-        """Valida o formato do email"""
         padrao = r'^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$'
         return re.match(padrao, email) is not None
 
     def mostrar_erro_email(self):
-        """Destaca campo de email com erro"""
         self.email.configure(border_color="#EF4444", border_width=2)
         self.label_erro_email.configure(text="❌ Email inválido", text_color="#EF4444")
 
     def limpar_erro_email(self):
-        """Remove destaque de erro do email"""
         self.email.configure(border_color="#E5E7EB", border_width=1)
         self.label_erro_email.configure(text="")
 
     def limpar_erro_senha(self):
-        """Remove destaque de erro da senha"""
         self.senha.configure(border_color="#E5E7EB", border_width=1)
         self.label_erro_senha.configure(text="")
 
     def alternar_visibilidade_senha(self):
-        """Alterna entre mostrar e esconder a senha"""
         self.mostrar_senha = not self.mostrar_senha
         if self.mostrar_senha:
             self.senha.configure(show="")
@@ -309,16 +244,11 @@ class Login:
             self.btn_mostrar_senha.configure(text="Mostrar")
 
     def validar_formulario_login(self):
-        """Valida todo o formulário de login"""
         email = self.email.get().strip()
         senha = self.senha.get().strip()
-
         valido = True
 
-        if not email:
-            self.mostrar_erro_email()
-            valido = False
-        elif not self.validar_email(email):
+        if not email or not self.validar_email(email):
             self.mostrar_erro_email()
             valido = False
         else:
@@ -334,10 +264,6 @@ class Login:
 
         return valido
 
-    # ==================================================
-    # FUNÇÕES DE EVENTO
-    # ==================================================
-
     def criar_conta(self):
         try:
             from criarConta import CriarConta
@@ -348,7 +274,6 @@ class Login:
             messagebox.showerror("Erro", f"Não foi possível abrir o ecrã de registo:\n{e}")
 
     def esqueceu_senha(self):
-        """Sistema de recuperação de password em múltiplos passos com código de verificação"""
         janela_recuperar = ctk.CTkToplevel(self.root)
         janela_recuperar.title("Recuperação de Palavra-passe")
         janela_recuperar.geometry("500x600")
@@ -356,7 +281,6 @@ class Login:
         janela_recuperar.transient(self.root)
         janela_recuperar.grab_set()
 
-        # ===== PASSO 1: Verificar Email =====
         def mostrar_passo1():
             for widget in frame_conteudo.winfo_children():
                 widget.destroy()
@@ -382,8 +306,7 @@ class Login:
                     conn.close()
 
                     if resultado:
-                        utilizador_id, nome_utilizador = resultado
-                        # Gerar código de verificação
+                        utilizador_id, _ = resultado
                         codigo = ''.join(random.choices(string.digits, k=6))
                         mostrar_passo2(email, utilizador_id, codigo)
                     else:
@@ -393,7 +316,6 @@ class Login:
 
             ctk.CTkButton(frame_conteudo, text="Continuar", font=("Segoe UI", 13, "bold"), height=40, width=400, command=verificar_email).pack(pady=(20, 0), padx=30)
 
-        # ===== PASSO 2: Código de Verificação =====
         def mostrar_passo2(email, usuario_id, codigo_verificacao):
             for widget in frame_conteudo.winfo_children():
                 widget.destroy()
@@ -417,7 +339,6 @@ class Login:
 
             ctk.CTkButton(frame_conteudo, text="Verificar", font=("Segoe UI", 13, "bold"), height=40, width=400, command=verificar_codigo).pack(pady=(20, 0), padx=30)
 
-        # ===== PASSO 3: Nova Palavra-passe =====
         def mostrar_passo3(email, usuario_id):
             for widget in frame_conteudo.winfo_children():
                 widget.destroy()
@@ -456,17 +377,15 @@ class Login:
                     conn.commit()
                     conn.close()
 
-                    messagebox.showinfo("Sucesso", "Palavra-passe alterada com sucesso!\n\nJá pode fazer login com a nova palavra-passe.", parent=janela_recuperar)
+                    messagebox.showinfo("Sucesso", "Palavra-passe alterada com sucesso!", parent=janela_recuperar)
                     janela_recuperar.destroy()
                 except Exception as e:
                     messagebox.showerror("Erro", f"Erro ao atualizar: {e}", parent=janela_recuperar)
 
             ctk.CTkButton(frame_conteudo, text="Atualizar Palavra-passe", font=("Segoe UI", 13, "bold"), height=40, width=400, command=atualizar_senha).pack(pady=(20, 0), padx=30)
 
-        # Frame principal para conteúdo dinâmico
         frame_conteudo = ctk.CTkFrame(janela_recuperar, fg_color="transparent")
         frame_conteudo.pack(fill="both", expand=True, padx=10, pady=10)
-
         mostrar_passo1()
 
     def login(self):
@@ -480,15 +399,12 @@ class Login:
         self.btn_entrar.configure(state="disabled", text="A processar...")
         self.root.update()
 
-        # Normalizar o email para minúsculas para evitar falhas de digitação
         email = self.email.get().strip().lower()
         senha = self.senha.get().strip()
 
         try:
             conn = conectar()
             cursor = conn.cursor()
-
-            # Usamos LOWER(email) na query para garantir correspondência total e segura
             cursor.execute("""
                 SELECT id, nome, email, perfil, telefone
                 FROM utilizadores
@@ -504,17 +420,16 @@ class Login:
                 perfil = utilizador[3]
 
                 try:
-                    if self.lembrar_var.get() == 1:
-                        dados_config = {"email": email, "lembrar": 1}
-                    else:
-                        dados_config = {"email": "", "lembrar": 0}
-
+                    dados_config = {"email": email if self.lembrar_var.get() == 1 else "", "lembrar": self.lembrar_var.get()}
                     with open(self.config_file, "w") as f:
                         json.dump(dados_config, f, indent=4)
                 except Exception as e:
                     print(f"Erro ao salvar config: {e}")
 
                 messagebox.showinfo("Sucesso", f"Login efetuado! Bem-vindo, {nome_utilizador}.")
+                
+                # Reseta de imediato o estado para o próximo Logout sem congelar
+                self.restaurar_tela_login()
                 self.root.withdraw()
 
                 if perfil == "Administrador":
@@ -522,30 +437,23 @@ class Login:
                     dashboard.protocol("WM_DELETE_WINDOW", lambda: [dashboard.destroy(), self.root.destroy()])
                     dashboard.mainloop()
                 elif perfil == "Estudante":
-                    # Passa dinamicamente o ID real detetado na sessão para o Dashboard do estudante
                     dashboard = DashboardEstudante(parent=self.root, id_utilizador_logado=id_utilizador)
                     dashboard.protocol("WM_DELETE_WINDOW", lambda: [dashboard.destroy(), self.root.destroy()])
                     dashboard.mainloop()
                 else:
-                    messagebox.showerror("Erro", f"Tipo de perfil não mapeado no sistema: {perfil}")
+                    messagebox.showerror("Erro", f"Tipo de perfil não mapeado: {perfil}")
                     self.root.deiconify()
             else:
                 self.email.configure(border_color="#EF4444", border_width=2)
                 self.senha.configure(border_color="#EF4444", border_width=2)
                 messagebox.showerror("Erro de Autenticação", "Email ou palavra-passe incorretos.")
+                self.restaurar_tela_login()
 
         except Exception as erro:
             messagebox.showerror("Erro", f"Erro ao aceder à base de dados:\n{erro}")
+            self.restaurar_tela_login()
 
-        finally:
-            self.login_em_andamento = False
-            # CORREÇÃO CRÍTICA: Só tenta alterar o botão se ele e a janela ainda existirem fisicamente
-            try:
-                if self.root.winfo_exists() and self.btn_entrar.winfo_exists():
-                    self.btn_entrar.configure(state="normal", text="Entrar")
-                    self.root.update()
-            except Exception:
-                pass # Se já tiver sido destruído pelo encerramento da aplicação, ignora em silêncio
+
 if __name__ == "__main__":
     from database.database import criar_base
     criar_base()

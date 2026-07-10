@@ -265,12 +265,10 @@ class CriarConta:
     # ==================================================
 
     def validar_email(self, email):
-        """Valida o formato de email"""
         padrao = r'^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$'
         return re.match(padrao, email) is not None
 
     def validar_forca_senha(self, senha):
-        """Retorna tuple (é_forte, mensagem)"""
         if len(senha) < 8:
             return False, "❌ Mínimo 8 caracteres"
         if not re.search(r'[A-Z]', senha):
@@ -284,7 +282,6 @@ class CriarConta:
         return True, "✅ Palavra-passe forte"
 
     def avaliar_forca_senha(self):
-        """Avalia e mostra a força da senha em tempo real"""
         senha = self.senha.get()
         if not senha:
             self.label_forca_senha.configure(text="")
@@ -297,22 +294,18 @@ class CriarConta:
         self.label_erro_senha.configure(text="")
 
     def limpar_erro_nome(self):
-        """Limpa erro de nome ao digitar"""
         self.nome.configure(border_color="#E5E7EB", border_width=1)
         self.label_erro_nome.configure(text="")
 
     def limpar_erro_email(self):
-        """Limpa erro de email ao digitar"""
         self.email.configure(border_color="#E5E7EB", border_width=1)
         self.label_erro_email.configure(text="")
 
     def limpar_erro_confirmar_senha(self):
-        """Limpa erro de confirmação de senha ao digitar"""
         self.confirmar_senha.configure(border_color="#E5E7EB", border_width=1)
         self.label_erro_confirmar_senha.configure(text="")
 
     def validar_formulario(self):
-        """Valida todo o formulário antes de criar conta"""
         nome = self.nome.get().strip()
         email = self.email.get().strip()
         senha = self.senha.get().strip()
@@ -320,7 +313,6 @@ class CriarConta:
 
         valido = True
 
-        # Validar nome
         if not nome:
             self.nome.configure(border_color="#EF4444", border_width=2)
             self.label_erro_nome.configure(text="❌ Nome obrigatório")
@@ -332,7 +324,6 @@ class CriarConta:
         else:
             self.limpar_erro_nome()
 
-        # Validar email
         if not email:
             self.email.configure(border_color="#EF4444", border_width=2)
             self.label_erro_email.configure(text="❌ Email obrigatório")
@@ -344,7 +335,6 @@ class CriarConta:
         else:
             self.limpar_erro_email()
 
-        # Validar senha
         if not senha:
             self.senha.configure(border_color="#EF4444", border_width=2)
             self.label_erro_senha.configure(text="❌ Palavra-passe obrigatória")
@@ -358,7 +348,6 @@ class CriarConta:
             else:
                 self.senha.configure(border_color="#E5E7EB", border_width=1)
 
-        # Validar confirmação de senha
         if not confirmar:
             self.confirmar_senha.configure(border_color="#EF4444", border_width=2)
             self.label_erro_confirmar_senha.configure(text="❌ Confirmação obrigatória")
@@ -370,7 +359,6 @@ class CriarConta:
         else:
             self.limpar_erro_confirmar_senha()
 
-        # Validar termos
         if self.termos_var.get() != 1:
             self.label_erro_termos.configure(text="❌ Deve aceitar os termos")
             valido = False
@@ -401,7 +389,7 @@ class CriarConta:
             sucesso = registar_novo_estudante(nome=nome, email=email, senha=senha)
 
             if sucesso:
-                messagebox.showinfo("Sucesso", "Conta de estudante criada com sucesso!\nAgora pode fazer login com o seu email.")
+                messagebox.showinfo("Sucesso", "Conta de estudante criada com sucesso!\nAgora pode fazer login.")
                 self.abrir_login()
             else:
                 self.email.configure(border_color="#EF4444", border_width=2)
@@ -413,16 +401,18 @@ class CriarConta:
 
         finally:
             self.criando_conta = False
-            self.btn_criar.configure(state="normal", text="Criar Conta")
-            self.root.update()
+            # CORREÇÃO CRÍTICA DO BOTÃO PRESO:
+            try:
+                if self.root.winfo_exists() and self.btn_criar.winfo_exists():
+                    self.btn_criar.configure(state="normal", text="Criar Conta")
+                    self.root.update()
+            except Exception:
+                pass
 
     def abrir_login(self):
-        # Limpa o ecrã atual destruindo o frame principal
-        self.main.destroy()
-
-        # Limpa qualquer login anteriormente "lembrado" (ex.: admin), para que o
-        # ecrã de login abra em branco e o utilizador introduza as credenciais
-        # da conta que acabou de criar, sem confusão com outra conta guardada.
+        # CORREÇÃO PARA RESOLVER LOGINS DUPLICADOS: 
+        # Como esta tela foi aberta como CTkToplevel(self.root), fechar a janela com destroy()
+        # faz com que o utilizador volte nativamente à tela de Login que já estava aberta por trás.
         try:
             config_file = os.path.join(os.path.dirname(os.path.abspath(__file__)), "config.json")
             with open(config_file, "w") as f:
@@ -430,11 +420,7 @@ class CriarConta:
         except Exception:
             pass
 
-        # Importa localmente para evitar problemas de importação circular
-        from login import Login
-
-        # Reconstrói a interface de login sobre a mesma janela root
-        Login(self.root)
+        self.root.destroy()
 
 
 if __name__ == "__main__":
