@@ -1,0 +1,6 @@
+customtkinter==5.2.0
+matplotlib==3.8.2
+Pillow==10.1.0
+pyswip==0.2.10
+reportlab==4.0.7
+openpyxl==3.1.2
