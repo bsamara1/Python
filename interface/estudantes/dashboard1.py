@@ -2,6 +2,9 @@ import sys
 import os
 
 diretorio_atual = os.path.dirname(os.path.abspath(__file__))
+if diretorio_atual not in sys.path:
+    sys.path.append(diretorio_atual)
+
 raiz_projeto = os.path.abspath(os.path.join(diretorio_atual, "..", ".."))
 if raiz_projeto not in sys.path:
     sys.path.append(raiz_projeto)
@@ -51,6 +54,33 @@ class DashboardEstudante(ctk.CTkToplevel):
         self.sidebar_ui()
         self.main_ui()
 
+    def terminar_sessao(self):
+        if messagebox.askyesno("Terminar Sessão", "Deseja realmente terminar a sessão?"):
+            if self.master:
+                try:
+                    # Limpa o campo de palavra-passe do ecrã de login antes de o mostrar de novo
+                    def limpar_campo_senha(parent):
+                        for widget in parent.winfo_children():
+                            if isinstance(widget, ctk.CTkEntry):
+                                if widget.cget("show") == "*":
+                                    widget.delete(0, 'end')
+                            if widget.winfo_children():
+                                limpar_campo_senha(widget)
+
+                    limpar_campo_senha(self.master)
+                except Exception as e:
+                    print(f"Aviso ao limpar campo de senha: {e}")
+
+                self.master.update_idletasks()
+
+                # Faz o ecrã de login reaparecer maximizado e com foco
+                self.master.deiconify()
+                self.master.state("zoomed")
+                self.master.focus_force()
+
+            # Encerra o painel do estudante de forma limpa
+            self.destroy()
+
     def carregar(self, caminho, tamanho):
         if os.path.exists(caminho):
             return ctk.CTkImage(Image.open(caminho), size=tamanho)
@@ -73,28 +103,44 @@ class DashboardEstudante(ctk.CTkToplevel):
         try:
             conn = conectar()
             cursor = conn.cursor()
-            cursor.execute("""
-                SELECT estado, COUNT(*), SUM(CAST(REPLACE(REPLACE(valor, ' CVE', ''), '.', '') AS INTEGER)) 
-                FROM candidaturas 
-                WHERE id_utilizador = ? 
-                GROUP BY estado
-            """, (self.id_utilizador_logado,))
-            
-            linhas = cursor.fetchall()
-            for linha in linhas:
-                estado = linha[0]
-                qtd = linha[1]
-                valor_parcial = linha[2] if linha[2] else 0
-                
-                dados["total"] += qtd
-                if estado == "Pendente":
-                    dados["pendentes"] = qtd
-                elif estado == "Aprovada":
-                    dados["aprovadas"] = qtd
-                    dados["valor_total"] += valor_parcial
+
+            # A tabela candidaturas não tem uma coluna 'id_utilizador' nem 'valor';
+            # a ligação correta é: utilizadores.email == estudantes.email -> estudantes.id == candidaturas.estudante_id
+            # e o valor da bolsa vem de bolsas.valor via candidaturas.bolsa_id.
+            cursor.execute("SELECT email FROM utilizadores WHERE id = ?", (self.id_utilizador_logado,))
+            res = cursor.fetchone()
+            email = res[0] if res else None
+
+            if email:
+                cursor.execute("SELECT id FROM estudantes WHERE email = ?", (email,))
+                res_estudante = cursor.fetchone()
+                estudante_id = res_estudante[0] if res_estudante else None
+
+                if estudante_id:
+                    cursor.execute("""
+                        SELECT c.estado, COUNT(*), SUM(b.valor)
+                        FROM candidaturas c
+                        LEFT JOIN bolsas b ON b.id = c.bolsa_id
+                        WHERE c.estudante_id = ?
+                        GROUP BY c.estado
+                    """, (estudante_id,))
+
+                    linhas = cursor.fetchall()
+                    for linha in linhas:
+                        estado = linha[0]
+                        qtd = linha[1]
+                        valor_parcial = linha[2] if linha[2] else 0
+
+                        dados["total"] += qtd
+                        if estado == "Pendente":
+                            dados["pendentes"] = qtd
+                        elif estado == "Aprovada":
+                            dados["aprovadas"] = qtd
+                            dados["valor_total"] += valor_parcial
+
             conn.close()
-        except Exception:
-            pass
+        except Exception as e:
+            print(f"Erro ao obter estatísticas do estudante: {e}")
         return dados
 
     def sidebar_ui(self):
@@ -156,7 +202,7 @@ class DashboardEstudante(ctk.CTkToplevel):
             hover_color="#2A3F5F",
             text_color="#FF6B6B",
             height=45,
-            command=self.destroy
+            command=self.terminar_sessao
         )
         self.btn_logout.pack(side="bottom", fill="x", padx=15, pady=(0, 20))
 
@@ -345,7 +391,7 @@ class DashboardEstudante(ctk.CTkToplevel):
         self.destacar_botao_menu("Bolsas Disponíveis")
         self.top_bar.pack_forget()
         self.limpar_area_conteudo()
-        pagina = BolsasPage(self.area_conteudo)
+        pagina = BolsasPage(self.area_conteudo, role="estudante", id_utilizador_logado=self.id_utilizador_logado)
         pagina.pack(fill="both", expand=True, padx=35, pady=20)
 
     def mostrar_avaliacao(self):
