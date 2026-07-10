@@ -1,8 +1,6 @@
 # interface/admin/relatorios.py
 import customtkinter as ctk
 from tkinter import messagebox, filedialog
-import os
-import sys
 import sqlite3
 from datetime import datetime, timedelta
 import matplotlib.pyplot as plt
@@ -18,10 +16,9 @@ from reportlab.lib import colors
 from database.database import conectar
 
 class RelatoriosPage(ctk.CTkFrame):
-    """Página de Relatórios com Dados Reais, Gráficos e Exportação PDF/Excel"""
-
     def __init__(self, master):
         super().__init__(master, fg_color="#F4F6FB")
+        self.caminho_db = "database.db"  # <- Adicione esta linha no __init__
         self.metricas = {}
         self.atualizar_dados()
         self.criar_interface()

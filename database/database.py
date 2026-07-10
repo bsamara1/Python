@@ -80,6 +80,28 @@ def criar_base():
         rendimento_maximo REAL DEFAULT 999999.0
     )
     """)
+    # No final da função criar_base(), mude a lógica para:
+
+    # Verifica se já existem bolsas cadastradas
+    cursor.execute("SELECT COUNT(*) FROM bolsas")
+    se_vazio = cursor.fetchone()[0] == 0
+
+    if se_vazio:
+        # Se a tabela estiver limpa, insere os exemplos
+        cursor.execute("""
+        INSERT INTO bolsas (nome, tipo, valor, estado, media_minima, rendimento_maximo)
+        VALUES ('Bolsa de Mérito', 'Mérito', 5000, 'Ativo', 15.0, 999999)
+        """)
+
+        cursor.execute("""
+        INSERT INTO bolsas (nome, tipo, valor, estado, media_minima, rendimento_maximo)
+        VALUES ('Bolsa Social', 'Social', 3000, 'Ativo', 10.0, 35000)
+        """)
+
+        cursor.execute("""
+        INSERT INTO bolsas (nome, tipo, valor, estado, media_minima, rendimento_maximo)
+        VALUES ('Bolsa de Estudo Integral', 'Integral', 8000, 'Ativo', 16.0, 45000)
+        """)
 
     # Migrations para compatibilidade com bases antigas
     try:
