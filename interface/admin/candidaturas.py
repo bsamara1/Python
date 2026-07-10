@@ -33,10 +33,13 @@ class Candidaturas(ctk.CTkFrame):
             cursor.execute("""
     SELECT 
         c.id, 
+        c.estudante_id,
         e.nome AS estudante_nome, 
+        c.bolsa_id,
         b.nome AS bolsa_nome, 
         c.estado, 
-        c.data_candidatura 
+        c.data_candidatura,
+        c.observacoes
     FROM candidaturas c
     INNER JOIN estudantes e ON c.estudante_id = e.id
     INNER JOIN bolsas b ON c.bolsa_id = b.id
@@ -320,7 +323,7 @@ class Candidaturas(ctk.CTkFrame):
 
             cursor.execute("""
                 UPDATE candidaturas
-                SET estado = ?, comentarios = ?
+                SET estado = ?, observacoes = ?
                 WHERE id = ?
             """, (novo_estado, novo_comentario.strip(), id_cand))
 
