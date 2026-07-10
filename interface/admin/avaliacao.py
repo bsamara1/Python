@@ -17,29 +17,33 @@ except ImportError:
     PROLOG_DISPONIVEL = False
 
 class AvaliacaoPage(ctk.CTkFrame):
-    """Página de Avaliação com Regras Prolog Reais"""
-
     def __init__(self, master):
         super().__init__(master, fg_color="#F4F6FB")
 
+        # Se não houver uma lógica complexa para obter o caminho, 
+        # pode definir diretamente ou implementar o método correspondente.
+        self.caminho_db = "database.db" 
         self.lista_estudantes = []
         self.lista_bolsas = []
-        self.prolog_engine = self.inicializar_prolog()
+
+        # --- INICIALIZAÇÃO DO PROLOG UNIFICADA ---
+        self.prolog = self.inicializar_prolog()
+        # -------------------------------------
 
         self.criar_interface()
         self.carregar_dados_combos()
 
     def inicializar_prolog(self):
-        """Inicializa o motor Prolog"""
+        """Inicializa o motor Prolog corretamente"""
         if not PROLOG_DISPONIVEL:
             print("⚠️  SWI-Prolog não disponível. Instale de: https://www.swi-prolog.org/Download.html")
             return None
 
         try:
             prolog = Prolog()
-            # Carregar as regras do arquivo
-            base_dir = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
-            regras_path = os.path.join(base_dir, 'prolog', 'regras.pl')
+            # Ajuste o caminho conforme a estrutura real das suas pastas:
+            base_dir = os.path.dirname(os.path.abspath(__file__))
+            regras_path = os.path.join(base_dir, 'regras.pl').replace("\\", "/")
 
             if os.path.exists(regras_path):
                 prolog.consult(regras_path)
@@ -51,45 +55,30 @@ class AvaliacaoPage(ctk.CTkFrame):
             print(f"Erro ao inicializar Prolog: {e}")
             return None
 
-    def carregar_dados_combos(self):
-        """Carrega os dados dos estudantes e bolsas do SQLite"""
-        try:
-            conn = conectar()
-            cursor = conn.cursor()
-
-            cursor.execute("SELECT id, nome, media, rendimento FROM estudantes")
-            self.lista_estudantes = cursor.fetchall()
-
-            cursor.execute("SELECT id, nome, tipo FROM bolsas")
-            self.lista_bolsas = cursor.fetchall()
-
-            conn.close()
-
-            nomes_estudantes = [est[1] for est in self.lista_estudantes]
-            if nomes_estudantes:
-                self.combo_estudante.configure(values=nomes_estudantes)
-                self.combo_estudante.set("Selecione um Estudante")
-
-            nomes_bolsas = [b[1] for b in self.lista_bolsas]
-            if nomes_bolsas:
-                self.combo_bolsa.configure(values=nomes_bolsas)
-                self.combo_bolsa.set("Selecione uma Bolsa")
-
-        except Exception as e:
-            print(f"Aviso ao carregar dados: {e}")
-
     def avaliar_com_prolog(self, tipo_bolsa, media, rendimento):
-        """Avalia elegibilidade usando Prolog real"""
-        if not self.prolog_engine:
+        """Avalia elegibilidade isolando o motor Prolog por chamada para evitar falhas de thread"""
+        if not PROLOG_DISPONIVEL:
             return False, ["❌ Motor Prolog não disponível"]
 
         try:
-            # Query Prolog: elegivel(TipoBolsa, Media, Rendimento)
-            query = f'elegivel("{tipo_bolsa}", {media}, {rendimento})'
-            resultado = list(self.prolog_engine.query(query))
+            # Criamos uma instância local e isolada para esta consulta específica
+            prolog_local = Prolog()
+            
+            # Localiza e carrega as regras estritamente para esta execução
+            base_dir = os.path.dirname(os.path.abspath(__file__))
+            caminho_regras = os.path.join(base_dir, 'regras.pl').replace("\\", "/")
+            prolog_local.consult(caminho_regras)
+
+            query_str = f'elegivel("{tipo_bolsa}", {media}, {rendimento})'
+            
+            # Executa e consome imediatamente os dados
+            with prolog_local.query(query_str) as q:
+                resultado = list(q)
+
+            # Limpa referências locais para forçar o coletor do Python a liberar a interface C
+            del prolog_local
 
             if resultado:
-                # Elegível
                 motivos = [
                     f"✓ Aprovado pela regra: elegivel('{tipo_bolsa}', {media}, {rendimento})",
                     f"✓ Média: {media:.1f}v",
@@ -97,7 +86,6 @@ class AvaliacaoPage(ctk.CTkFrame):
                 ]
                 return True, motivos
             else:
-                # Não elegível
                 motivos = [
                     f"✗ Não elegível para '{tipo_bolsa}'",
                     f"✗ Critérios não cumpridos",
@@ -108,7 +96,7 @@ class AvaliacaoPage(ctk.CTkFrame):
 
         except Exception as e:
             return False, [f"❌ Erro ao executar Prolog: {str(e)}"]
-
+        
     def avaliar_candidatura(self):
         """Executa a avaliação com Prolog"""
         estudante_sel = self.combo_estudante.get()
@@ -194,6 +182,48 @@ class AvaliacaoPage(ctk.CTkFrame):
         except Exception as e:
             print(f"Erro ao salvar avaliação: {e}")
 
+    def carregar_dados_combos(self):
+        """Carrega os dados das bolsas e dos estudantes do Banco de Dados para os Comboboxes"""
+        try:
+            conn = conectar()
+            cursor = conn.cursor()
+
+            # 1. Carregar Estudantes (guardando ID e Nome)
+            cursor.execute("SELECT id, nome FROM estudantes ORDER BY nome ASC")
+            dados_estudantes = cursor.fetchall()
+            self.lista_estudantes = dados_estudantes # Salva a tupla (id, nome)
+            
+            # Gera a lista de strings para exibir no Combobox (Ex: "1 - João Silva")
+            nomes_estudantes = [f"{id_est} - {nome}" for id_est, nome in dados_estudantes]
+            if hasattr(self, 'combo_estudante'):  # Verifica se o componente existe na UI
+                if nomes_estudantes:
+                    self.combo_estudante.configure(values=nomes_estudantes)
+                    self.combo_estudante.set(nomes_estudantes[0])
+                else:
+                    self.combo_estudante.configure(values=["Nenhum estudante cadastrado"])
+                    self.combo_estudante.set("Nenhum estudante cadastrado")
+
+            # 2. Carregar Bolsas
+            cursor.execute("SELECT id, nome FROM bolsas WHERE estado = 'Ativa' ORDER BY nome ASC")
+            dados_bolsas = cursor.fetchall()
+            self.lista_bolsas = dados_bolsas # Salva a tupla (id, nome)
+            
+            # Gera a lista de strings para exibir no Combobox (Ex: "Merito")
+            nomes_bolsas = [nome for _, nome in dados_bolsas]
+            if hasattr(self, 'combo_bolsa'):  # Verifica se o componente existe na UI
+                if nomes_bolsas:
+                    self.combo_bolsa.configure(values=nomes_bolsas)
+                    self.combo_bolsa.set(nomes_bolsas[0])
+                else:
+                    self.combo_bolsa.configure(values=["Nenhuma bolsa ativa"])
+                    self.combo_bolsa.set("Nenhuma bolsa ativa")
+
+            conn.close()
+            print("✓ Dados dos Comboboxes recarregados com sucesso.")
+
+        except Exception as e:
+            messagebox.showerror("Erro", f"Erro ao carregar dados para seleção:\n{str(e)}")
+            
     def criar_interface(self):
         """Gera a interface pixel-perfect baseada no layout moderno fornecido"""
         

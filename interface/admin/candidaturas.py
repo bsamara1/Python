@@ -31,20 +31,16 @@ class Candidaturas(ctk.CTkFrame):
             cursor = conn.cursor()
 
             cursor.execute("""
-                SELECT
-                    c.id,
-                    e.id as estudante_id,
-                    e.nome AS estudante_nome,
-                    b.id as bolsa_id,
-                    b.nome AS bolsa_nome,
-                    c.estado,
-                    c.data_candidatura,
-                    c.comentarios
-                FROM candidaturas c
-                INNER JOIN estudantes e ON c.estudante_id = e.id
-                INNER JOIN bolsas b ON c.bolsa_id = b.id
-                ORDER BY c.data_candidatura DESC
-            """)
+    SELECT 
+        c.id, 
+        e.nome AS estudante_nome, 
+        b.nome AS bolsa_nome, 
+        c.estado, 
+        c.data_candidatura 
+    FROM candidaturas c
+    INNER JOIN estudantes e ON c.estudante_id = e.id
+    INNER JOIN bolsas b ON c.bolsa_id = b.id
+""")
 
             self.candidaturas_data = cursor.fetchall()
             conn.close()
