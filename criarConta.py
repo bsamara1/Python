@@ -2,6 +2,8 @@ import customtkinter as ctk
 from tkinter import messagebox
 from PIL import Image
 import re
+import os
+import json
 
 try:
     from database import registar_novo_estudante
@@ -103,7 +105,7 @@ class CriarConta:
         # ==================================================
         # CARD REGISTO
         # ==================================================
-        self.card = ctk.CTkFrame(
+        self.card = ctk.CTkScrollableFrame(
             self.main,
             width=580,
             height=760,
@@ -113,7 +115,6 @@ class CriarConta:
             border_color="#E5E7EB"
         )
         self.card.place(relx=0.74, rely=0.5, anchor="center")
-        self.card.pack_propagate(False)
 
         # ==================================================
         # TÍTULOS
@@ -418,6 +419,16 @@ class CriarConta:
     def abrir_login(self):
         # Limpa o ecrã atual destruindo o frame principal
         self.main.destroy()
+
+        # Limpa qualquer login anteriormente "lembrado" (ex.: admin), para que o
+        # ecrã de login abra em branco e o utilizador introduza as credenciais
+        # da conta que acabou de criar, sem confusão com outra conta guardada.
+        try:
+            config_file = os.path.join(os.path.dirname(os.path.abspath(__file__)), "config.json")
+            with open(config_file, "w") as f:
+                json.dump({"email": "", "lembrar": 0}, f, indent=4)
+        except Exception:
+            pass
 
         # Importa localmente para evitar problemas de importação circular
         from login import Login
