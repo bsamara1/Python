@@ -48,9 +48,10 @@ if not conectado:
 class BolsasPage(ctk.CTkFrame):
     """Página de Visualização/Gestão de Bolsas adaptada dinamicamente ao tipo de utilizador"""
     # (O restante código da classe permanece idêntico)
-    def __init__(self, master, role="estudante"):  # Adicionado o parâmetro 'role'
+    def __init__(self, master, role="estudante", id_utilizador_logado=None):  # Adicionado o parâmetro 'role'
         super().__init__(master, fg_color="#F4F6FB")
         self.role = role.lower()
+        self.id_utilizador_logado = id_utilizador_logado
         self.bolsas_data = []
         self.coluna_ordenada = None
         self.ordem_ascendente = True
@@ -296,9 +297,68 @@ class BolsasPage(ctk.CTkFrame):
                     font=("Segoe UI", 11), command=lambda id_b=id_b: self.eliminar_bolsa(id_b)
                 ).pack(side="left", padx=4)
 
+    def obter_estudante_id(self):
+        """Faz a ponte entre o utilizador logado (tabela utilizadores) e o
+        registo correspondente na tabela estudantes, usando o email como elo
+        (as duas tabelas não têm uma foreign key direta entre si)."""
+        if not self.id_utilizador_logado:
+            return None
+        try:
+            conn = conectar()
+            cursor = conn.cursor()
+            cursor.execute("SELECT email FROM utilizadores WHERE id = ?", (self.id_utilizador_logado,))
+            res = cursor.fetchone()
+            if not res or not res[0]:
+                conn.close()
+                return None
+            email = res[0]
+
+            cursor.execute("SELECT id FROM estudantes WHERE email = ?", (email,))
+            res_estudante = cursor.fetchone()
+            conn.close()
+            return res_estudante[0] if res_estudante else None
+        except Exception as e:
+            print(f"Erro ao obter estudante_id: {e}")
+            return None
+
     def candidatar_bolsa(self, bolsa):
         """Ação executada quando um estudante clica em Candidatar"""
-        id_b, nome, *rest = bolsa
-        messagebox.showinfo("Candidatura", f"Iniciando processo de candidatura para:\n👉 {nome}\n(Implemente a sua lógica de submissão aqui)")
+        id_bolsa, nome, *rest = bolsa
+
+        estudante_id = self.obter_estudante_id()
+        if not estudante_id:
+            messagebox.showerror(
+                "Erro",
+                "Não foi possível identificar o seu perfil de estudante.\n"
+                "Verifique se o seu registo de estudante tem o mesmo email da sua conta de login."
+            )
+            return
+
+        try:
+            conn = conectar()
+            cursor = conn.cursor()
+
+            # Evitar candidaturas duplicadas para a mesma bolsa (Pendente ou Aprovada)
+            cursor.execute("""
+                SELECT id FROM candidaturas
+                WHERE estudante_id = ? AND bolsa_id = ? AND estado IN ('Pendente', 'Aprovada')
+            """, (estudante_id, id_bolsa))
+            if cursor.fetchone():
+                conn.close()
+                messagebox.showwarning("Candidatura já existe", f"Já tem uma candidatura em curso para '{nome}'.")
+                return
+
+            cursor.execute("""
+                INSERT INTO candidaturas (estudante_id, bolsa_id, data_candidatura, estado, observacoes)
+                VALUES (?, ?, DATE('now'), 'Pendente', ?)
+            """, (estudante_id, id_bolsa, ""))
+
+            conn.commit()
+            conn.close()
+
+            messagebox.showinfo("Candidatura enviada", f"Candidatura submetida com sucesso para:\n👉 {nome}")
+
+        except Exception as e:
+            messagebox.showerror("Erro", f"Erro ao submeter candidatura: {str(e)}")
 
     # (Os métodos abrir_formulario, validar_campo_decimal, salvar_bolsa e eliminar_bolsa permanecem iguais)
