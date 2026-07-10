@@ -164,29 +164,6 @@ def criar_base():
     )
     """)
 
-    # ==================================================
-    # UTILIZADORES PADRÃO (Para os primeiros testes)
-    # ==================================================
-    cursor.execute("""
-    INSERT OR IGNORE INTO utilizadores (nome, email, senha, perfil, telefone, data_criacao)
-    VALUES ('Benedita Samara Duarte Tavares', 'admin@sibes.com', '1234', 'Administrador', '9991122', DATE('now'))
-    """)
-
-    cursor.execute("""
-    INSERT OR IGNORE INTO utilizadores (nome, email, senha, perfil, data_criacao)
-    VALUES ('Secretária Geral', 'secretaria@sibes.com', '1234', 'Secretaria', DATE('now'))
-    """)
-
-    cursor.execute("""
-    INSERT OR IGNORE INTO utilizadores (nome, email, senha, perfil, data_criacao)
-    VALUES ('Estudante Exemplo', 'estudante@sibes.com', '1234', 'Estudante', DATE('now'))
-    """)
-    
-    # IMPORTANTE: Garante que o estudante padrão também existe na tabela de estudantes para testes locais
-    cursor.execute("""
-    INSERT OR IGNORE INTO estudantes (nome, email, universidade, curso, ano, media, rendimento, data_registo, data_criacao)
-    VALUES ('Estudante Exemplo', 'estudante@sibes.com', 'Universidade Aberta', 'Informática', 2, 16.5, 18000.0, DATE('now'), DATE('now'))
-    """)
 
     conn.commit()
     conn.close()
