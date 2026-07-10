@@ -291,7 +291,7 @@ class Candidaturas(ctk.CTkFrame):
 
         janela = ctk.CTkToplevel(self)
         janela.title("Detalhes da Candidatura")
-        janela.geometry("500x400")
+        janela.geometry("500x600")
         janela.grab_set()
         janela.resizable(False, False)
 

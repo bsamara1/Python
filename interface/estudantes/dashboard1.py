@@ -186,8 +186,6 @@ class DashboardEstudante(ctk.CTkToplevel):
             ("Painel Principal", icon("casa.png"), self.mostrar_painel),
             ("Minhas Candidaturas", icon("candidatura.png"), self.mostrar_candidaturas),
             ("Bolsas Disponíveis", icon("bolsa.png"), self.mostrar_bolsas),
-            ("Avaliação Inteligente", icon("avaliacao.png"), self.mostrar_avaliacao),
-            ("Relatórios Pessoais", icon("relatorio.png"), self.mostrar_relatorios),
             ("Meu Perfil", icon("perfil.png"), self.mostrar_perfil)
         ]
 
@@ -402,33 +400,7 @@ class DashboardEstudante(ctk.CTkToplevel):
         )
         pagina.pack(fill="both", expand=True, padx=35, pady=20)
 
-    def mostrar_avaliacao(self):
-        self.reorganizar_layout_com_topo()
-        self.destacar_botao_menu("Avaliação Inteligente")
-        self.top_bar.pack_forget()
-        self.limpar_area_conteudo()
-        
-        frame_prolog = ctk.CTkFrame(self.area_conteudo, fg_color="white", corner_radius=12, border_width=1, border_color="#E5E7EB")
-        frame_prolog.pack(fill="both", expand=True, padx=35, pady=20)
-        
-        ctk.CTkLabel(frame_prolog, text="🧠 Mecanismo de Inferência SIBES", font=("Segoe UI", 18, "bold"), text_color="#142850").pack(anchor="w", padx=30, pady=(30, 8))
-        btn_validar = ctk.CTkButton(
-            frame_prolog, text="🚀 Executar Evaluation de Elegibilidade", font=("Segoe UI", 13, "bold"),
-            fg_color="#2563EB", hover_color="#1D4ED8", height=42, corner_radius=8,
-            command=lambda: messagebox.showinfo("SIBES Prolog Engine", "Inferência executada com sucesso!\nTodos os critérios regulamentares estão em conformidade.")
-        )
-        btn_validar.pack(anchor="w", padx=30, pady=25)
-
-    def mostrar_relatorios(self):
-        self.reorganizar_layout_com_topo()
-        self.destacar_botao_menu("Relatórios Pessoais")
-        self.top_bar.pack_forget()
-        self.limpar_area_conteudo()
-        
-        frame_relatorios = ctk.CTkFrame(self.area_conteudo, fg_color="white", corner_radius=12, border_width=1, border_color="#E5E7EB")
-        frame_relatorios.pack(fill="both", expand=True, padx=35, pady=20)
-        ctk.CTkLabel(frame_relatorios, text="📊 Meus Relatórios e Histórico", font=("Segoe UI", 18, "bold"), text_color="#142850").pack(anchor="w", padx=30, pady=(30, 8))
-
+    
     def mostrar_perfil(self):
         self.reorganizar_layout_com_topo()
         self.destacar_botao_menu("Meu Perfil")
