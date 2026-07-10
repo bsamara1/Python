@@ -169,7 +169,11 @@ class EstudantesPage(ctk.CTkFrame):
 
         colunas = ["ID", "Nome", "Email", "Universidade", "Curso", "Ano", "Média", "Rendimento", "Ações"]
         for i, col in enumerate(colunas):
-            self.tabela_container.grid_columnconfigure(i, weight=1)
+            if col == "Ações":
+                # Força a coluna das Ações a guardar espaço suficiente para os botões sem os esmagar
+                self.tabela_container.grid_columnconfigure(i, weight=0, minsize=180)
+            else:
+                self.tabela_container.grid_columnconfigure(i, weight=1, minsize=80)
 
             texto_col = col
             if self.coluna_ordenada:
@@ -193,7 +197,8 @@ class EstudantesPage(ctk.CTkFrame):
                 border_color="#E5E7EB",
                 command=lambda col_idx=i: self.aplicar_ordenacao(col_idx) if col != "Ações" else None
             )
-            btn_header.grid(row=0, column=i, padx=15, pady=15, sticky="ew")
+            # Reduzido padx para 5 para poupar espaço horizontal geral
+            btn_header.grid(row=0, column=i, padx=5, pady=15, sticky="ew")
 
         termo = self.entry_pesquisa.get().strip()
         uni_selecionada = self.combo_uni.get()
@@ -246,31 +251,33 @@ class EstudantesPage(ctk.CTkFrame):
         for row_idx, est in enumerate(self.estudantes_data, start=1):
             id_est, nome, email, telefone, universidade, curso, ano, media, rendimento = est
 
-            ctk.CTkLabel(self.tabela_container, text=str(id_est), font=("Segoe UI", 13)).grid(row=row_idx, column=0, padx=15, pady=10, sticky="w")
-            ctk.CTkLabel(self.tabela_container, text=nome, font=("Segoe UI", 13, "bold"), text_color="#1F2937").grid(row=row_idx, column=1, padx=15, pady=10, sticky="w")
-            ctk.CTkLabel(self.tabela_container, text=email, font=("Segoe UI", 13), text_color="#4B5563").grid(row=row_idx, column=2, padx=15, pady=10, sticky="w")
-            ctk.CTkLabel(self.tabela_container, text=str(universidade or "N/A"), font=("Segoe UI", 13)).grid(row=row_idx, column=3, padx=15, pady=10, sticky="w")
-            ctk.CTkLabel(self.tabela_container, text=str(curso or "N/A"), font=("Segoe UI", 13)).grid(row=row_idx, column=4, padx=15, pady=10, sticky="w")
-            ctk.CTkLabel(self.tabela_container, text=str(ano or 1), font=("Segoe UI", 13)).grid(row=row_idx, column=5, padx=15, pady=10, sticky="w")
-            ctk.CTkLabel(self.tabela_container, text=f"{media:.1f}" if media else "0.0", font=("Segoe UI", 13)).grid(row=row_idx, column=6, padx=15, pady=10, sticky="w")
-            ctk.CTkLabel(self.tabela_container, text=f"{rendimento:,.0f}$" if rendimento else "0$", font=("Segoe UI", 13)).grid(row=row_idx, column=7, padx=15, pady=10, sticky="w")
+            # Reduzido padx para 6 píxeis para que as colunas fiquem perfeitamente organizadas
+            ctk.CTkLabel(self.tabela_container, text=str(id_est), font=("Segoe UI", 13)).grid(row=row_idx, column=0, padx=6, pady=10, sticky="w")
+            ctk.CTkLabel(self.tabela_container, text=nome, font=("Segoe UI", 13, "bold"), text_color="#1F2937").grid(row=row_idx, column=1, padx=6, pady=10, sticky="w")
+            ctk.CTkLabel(self.tabela_container, text=email, font=("Segoe UI", 13), text_color="#4B5563").grid(row=row_idx, column=2, padx=6, pady=10, sticky="w")
+            ctk.CTkLabel(self.tabela_container, text=str(universidade or "N/A"), font=("Segoe UI", 13)).grid(row=row_idx, column=3, padx=6, pady=10, sticky="w")
+            ctk.CTkLabel(self.tabela_container, text=str(curso or "N/A"), font=("Segoe UI", 13)).grid(row=row_idx, column=4, padx=6, pady=10, sticky="w")
+            ctk.CTkLabel(self.tabela_container, text=str(ano or 1), font=("Segoe UI", 13)).grid(row=row_idx, column=5, padx=6, pady=10, sticky="w")
+            ctk.CTkLabel(self.tabela_container, text=f"{media:.1f}" if media else "0.0", font=("Segoe UI", 13)).grid(row=row_idx, column=6, padx=6, pady=10, sticky="w")
+            ctk.CTkLabel(self.tabela_container, text=f"{rendimento:,.0f}$" if rendimento else "0$", font=("Segoe UI", 13)).grid(row=row_idx, column=7, padx=6, pady=10, sticky="w")
 
             frame_acoes = ctk.CTkFrame(self.tabela_container, fg_color="transparent")
-            frame_acoes.grid(row=row_idx, column=8, padx=15, pady=10, sticky="w")
+            # ERRO CORRIGIDO: Removido sticky="center" que quebrava o Tkinter
+            frame_acoes.grid(row=row_idx, column=8, padx=5, pady=10)
 
             btn_editar = ctk.CTkButton(
-                frame_acoes, text="Editar", width=60, height=28, corner_radius=6,
+                frame_acoes, text="Editar", width=75, height=28, corner_radius=6,
                 fg_color="#EBF0FF", text_color="#1A5CFF", hover_color="#D6E4FF",
                 font=("Segoe UI", 11), command=lambda e=est: self.abrir_formulario(e)
             )
-            btn_editar.pack(side="left", padx=4)
+            btn_editar.pack(side="left", padx=3)
 
             btn_eliminar = ctk.CTkButton(
-                frame_acoes, text="Eliminar", width=60, height=28, corner_radius=6,
+                frame_acoes, text="Eliminar", width=75, height=28, corner_radius=6,
                 fg_color="#FFEAEA", text_color="#FF4D4D", hover_color="#FFD1D1",
                 font=("Segoe UI", 11), command=lambda id_e=id_est: self.eliminar_estudante(id_e)
             )
-            btn_eliminar.pack(side="left", padx=4)
+            btn_eliminar.pack(side="left", padx=3)
 
     def abrir_formulario(self, dados_estudante=None):
         janela_form = ctk.CTkToplevel(self)
@@ -306,10 +313,8 @@ class EstudantesPage(ctk.CTkFrame):
         label_erros = {}
 
         for campo, placeholder, _, tipo in campos_info:
-            # Label do campo
             ctk.CTkLabel(form_scroll, text=campo, font=("Segoe UI", 12, "bold"), text_color="#142850").pack(anchor="w", padx=15, pady=(12, 3))
 
-            # Entry
             entry = ctk.CTkEntry(
                 form_scroll,
                 width=450,
@@ -321,12 +326,10 @@ class EstudantesPage(ctk.CTkFrame):
             entry.pack(padx=15, pady=(0, 2))
             entries[campo] = entry
 
-            # Label de erro
             label_erro = ctk.CTkLabel(form_scroll, text="", font=("Segoe UI", 10), text_color="#EF4444")
             label_erro.pack(anchor="w", padx=15, pady=(0, 0))
             label_erros[campo] = label_erro
 
-            # Bind para validação em tempo real
             if tipo == "email":
                 entry.bind("<KeyRelease>", lambda e, c=campo: self.validar_campo_email(e, entries[c], label_erros[c]))
             elif tipo == "number":
@@ -334,7 +337,6 @@ class EstudantesPage(ctk.CTkFrame):
             elif tipo == "decimal":
                 entry.bind("<KeyRelease>", lambda e, c=campo, n=campo: self.validar_campo_decimal(e, entries[c], label_erros[c], c))
 
-        # Campo Senha (apenas para novo estudante)
         if not dados_estudante:
             ctk.CTkLabel(form_scroll, text="Senha de Acesso", font=("Segoe UI", 12, "bold"), text_color="#142850").pack(anchor="w", padx=15, pady=(12, 3))
             entry_senha = ctk.CTkEntry(
@@ -353,7 +355,6 @@ class EstudantesPage(ctk.CTkFrame):
             label_erro_senha.pack(anchor="w", padx=15, pady=(0, 15))
             label_erros["Senha"] = label_erro_senha
 
-        # Preencher dados se for edição
         if dados_estudante:
             entries["Nome"].insert(0, str(dados_estudante[1]))
             entries["Email"].insert(0, str(dados_estudante[2]))
@@ -364,7 +365,6 @@ class EstudantesPage(ctk.CTkFrame):
             entries["Média"].insert(0, str(f"{dados_estudante[7]:.1f}" if dados_estudante[7] else "0.0"))
             entries["Rendimento Familiar"].insert(0, str(f"{dados_estudante[8]:.0f}" if dados_estudante[8] else "0"))
 
-        # Frame de botões
         frame_botoes = ctk.CTkFrame(janela_form, fg_color="transparent")
         frame_botoes.pack(pady=20, fill="x", padx=20)
 
@@ -410,7 +410,6 @@ class EstudantesPage(ctk.CTkFrame):
             ).pack(side="left", fill="x", expand=True, padx=(5, 0))
 
     def validar_campo_email(self, event, entry, label_erro):
-        """Valida email em tempo real"""
         email = entry.get().strip()
         if not email:
             label_erro.configure(text="")
@@ -425,7 +424,6 @@ class EstudantesPage(ctk.CTkFrame):
             entry.configure(border_color="#EF4444", border_width=2)
 
     def validar_campo_numero(self, event, entry, label_erro, min_val, max_val):
-        """Valida números em tempo real"""
         valor = entry.get().strip()
         if not valor:
             label_erro.configure(text="")
@@ -445,7 +443,6 @@ class EstudantesPage(ctk.CTkFrame):
             entry.configure(border_color="#EF4444", border_width=2)
 
     def validar_campo_decimal(self, event, entry, label_erro, campo_nome):
-        """Valida decimais em tempo real"""
         valor = entry.get().strip()
         if not valor:
             label_erro.configure(text="")
@@ -473,13 +470,11 @@ class EstudantesPage(ctk.CTkFrame):
             entry.configure(border_color="#EF4444", border_width=2)
 
     def eliminar_com_confirmacao(self, id_estudante, janela_form):
-        """Elimina estudante com confirmação"""
         if messagebox.askyesno("Confirmar Eliminação", "Tem a certeza que deseja eliminar este estudante?\n\nEsta ação não pode ser desfeita!"):
             self.eliminar_estudante(id_estudante)
             janela_form.destroy()
 
     def validar_email(self, email):
-        """Valida o formato de email"""
         padrao = r'^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$'
         return re.match(padrao, email) is not None
 
